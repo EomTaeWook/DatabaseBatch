@@ -1,2 +1,5 @@
 .vs/
 Console/obj/
+Console/Config.json
+packages/
+Console/bin/
