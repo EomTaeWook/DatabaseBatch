@@ -1,12 +1,14 @@
-﻿namespace DatabaseBatch.Models
+﻿using DatabaseBatch.Infrastructure;
+
+namespace DatabaseBatch.Models
 {
-    public class Deployment
+    public class Publish
     {
-        public string PreDeploymentSql { get; set; }
+        public string PreDeployment { get; set; }
 
-        public string DeploymentSql { get; set; }
+        public string Deployment { get; set; } = Consts.OutputScript;
 
-        public string PostDeploymentSql { get; set; }
+        public string PostDeployment { get; set; }
 
     }
 }
