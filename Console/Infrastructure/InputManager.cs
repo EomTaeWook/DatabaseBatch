@@ -9,6 +9,11 @@ namespace DatabaseBatch.Infrastructure
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine(message);
         }
+        public void WriteTrace(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(message);
+        }
         public void WriteInfo(string message)
         {
             Console.ForegroundColor = ConsoleColor.Cyan;

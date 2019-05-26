@@ -29,8 +29,11 @@ namespace DatabaseBatch.Infrastructure
         public override void MakeScript()
         {
             LoadTable();
+            InputManager.Instance.WriteInfo("");
             LoadSp();
+            InputManager.Instance.WriteInfo("");
             OutputScript();
+            InputManager.Instance.WriteInfo("");
         }
         
         private void LoadTable()
@@ -67,10 +70,12 @@ namespace DatabaseBatch.Infrastructure
                             if(column == null)
                             {
                                 _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(parseTableData.Item2[ii], AlterTableType.Add));
+                                InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1}] ColumnName[{parseTableData.Item2[ii].ColumnName}] (이)가 추가됩니다.");
                             }
                             else if(!column.TypeCompare(parseTableData.Item2[ii]))
                             {
                                 _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(parseTableData.Item2[ii], AlterTableType.Modify));
+                                InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1}] ColumnName[{parseTableData.Item2[ii].ColumnName}] [{column.ColumnType}] 에서 [{parseTableData.Item2[ii].ColumnType}] 으로 변경됩니다.");
                             }
                         }
                         for (int ii = 0; ii < currentTableColumns.Count; ii++)
@@ -79,12 +84,14 @@ namespace DatabaseBatch.Infrastructure
                                 continue;
 
                             _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(currentTableColumns[ii], AlterTableType.Drop));
+                            InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1} ColumnName[{currentTableColumns[ii].ColumnName}] (이)가 삭제됩니다.");
                         }
                     }
                     else
                     {
                         //새로 생긴 테이블
                         _buffer.AppendLine(sql);
+                        InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1} (이)가 생성됩니다.");
                     }
                 }
             }
@@ -151,7 +158,7 @@ namespace DatabaseBatch.Infrastructure
 
             File.WriteAllText(Consts.OutputScript, _buffer.ToString());
 
-            InputManager.Instance.Write($"Create Script File : {Consts.OutputScript}");
+            InputManager.Instance.WriteTrace($"Create Script File : {Consts.OutputScript}");
         }
         private List<FileInfo> GetSqlFiles(DirectoryInfo directory)
         {
