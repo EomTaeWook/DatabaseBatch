@@ -77,7 +77,8 @@ namespace DatabaseBatch.Infrastructure
                         {
                             if(parseTableData.Item2.Any(r=> r.NameCompare(currentTableColumns[ii])))
                                 continue;
-                            _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(parseTableData.Item2[ii], AlterTableType.Drop));
+
+                            _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(currentTableColumns[ii], AlterTableType.Drop));
                         }
                     }
                     else
