@@ -84,7 +84,7 @@ namespace DatabaseBatch.Infrastructure
                                 continue;
 
                             _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(currentTableColumns[ii], AlterTableType.Drop));
-                            InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1} ColumnName[{currentTableColumns[ii].ColumnName}] (이)가 삭제됩니다.");
+                            InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1}] ColumnName[{currentTableColumns[ii].ColumnName}] (이)가 삭제됩니다.");
                         }
                     }
                     else
