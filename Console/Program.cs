@@ -16,7 +16,6 @@ namespace DatabaseBatch
                 ISqlManager manger = new MySqlManager();
                 manger.Init(config);
                 manger.MakeScript();
-                
 
                 InputManager.Instance.Write("작업이 완료되었습니다. 배포하시겠습니까?(Y/N)");
                 var input = Console.ReadKey();

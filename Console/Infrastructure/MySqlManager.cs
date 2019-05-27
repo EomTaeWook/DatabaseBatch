@@ -38,7 +38,7 @@ namespace DatabaseBatch.Infrastructure
         
         private void LoadTable()
         {
-            var currentTableInfos = GetMySqlTableInfo(new MySqlConnection(_config.SqlConnect));
+            var currentDBTables = GetMySqlTableInfo(new MySqlConnection(_config.SqlConnect));
 
             _buffer.AppendLine($"DELIMITER $$");
             _buffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_create_table`;");
@@ -61,37 +61,37 @@ namespace DatabaseBatch.Infrastructure
 
                     var parseTableData = SqlParseHelper.ParseMysqlDDLCommnad(sql);
                    
-                    if(currentTableInfos.ContainsKey(parseTableData.Item1.ToLower()))
+                    if(currentDBTables.ContainsKey(parseTableData.TableName.ToLower()))
                     {
-                        var currentTableColumns = currentTableInfos[parseTableData.Item1.ToLower()];
-                        for (int ii=0; ii< parseTableData.Item2.Count; ii++)
+                        var dbColumns = currentDBTables[parseTableData.TableName.ToLower()].Columns;
+
+                        foreach(var columnModel in parseTableData.Columns)
                         {
-                            var column = currentTableColumns.Where(r => r.NameCompare(parseTableData.Item2[ii])).FirstOrDefault();
-                            if(column == null)
+                            var dbColumn = dbColumns.Where(r => r.NameCompare(columnModel)).FirstOrDefault();
+                            if (dbColumn == null)
                             {
-                                _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(parseTableData.Item2[ii], AlterTableType.Add));
-                                InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1}] ColumnName[{parseTableData.Item2[ii].ColumnName}] (이)가 추가됩니다.");
+                                _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(columnModel, AlterTableType.Add));
+                                InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] (이)가 추가됩니다.");
                             }
-                            else if(!column.TypeCompare(parseTableData.Item2[ii]))
+                            else if (!dbColumn.TypeCompare(columnModel))
                             {
-                                _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(parseTableData.Item2[ii], AlterTableType.Modify));
-                                InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1}] ColumnName[{parseTableData.Item2[ii].ColumnName}] [{column.ColumnType}] 에서 [{parseTableData.Item2[ii].ColumnType}] 으로 변경됩니다.");
+                                _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(columnModel, AlterTableType.Modify));
+                                InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] [{dbColumn.ColumnType}] 에서 [{columnModel.ColumnType}] 으로 변경됩니다.");
                             }
                         }
-                        for (int ii = 0; ii < currentTableColumns.Count; ii++)
+                        foreach(var column in dbColumns)
                         {
-                            if(parseTableData.Item2.Any(r=> r.NameCompare(currentTableColumns[ii])))
+                            if (parseTableData.Columns.Any(r => r.NameCompare(column)))
                                 continue;
-
-                            _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(currentTableColumns[ii], AlterTableType.Drop));
-                            InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1}] ColumnName[{currentTableColumns[ii].ColumnName}] (이)가 삭제됩니다.");
+                            _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(column, AlterTableType.Drop));
+                            InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{column.ColumnName}] (이)가 삭제됩니다.");
                         }
                     }
                     else
                     {
                         //새로 생긴 테이블
                         _buffer.AppendLine(sql);
-                        InputManager.Instance.WriteTrace($"Table[{parseTableData.Item1} (이)가 생성됩니다.");
+                        InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName} (이)가 생성됩니다.");
                     }
                 }
             }

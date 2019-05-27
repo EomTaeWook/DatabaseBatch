@@ -70,6 +70,7 @@
     <Compile Include="Infrastructure\Consts.cs" />
     <Compile Include="Models\Deployment.cs" />
     <Compile Include="Models\ScriptCommandModel.cs" />
+    <Compile Include="Models\ColumnModel.cs" />
     <Compile Include="Models\TableInfoModel.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
