@@ -7,12 +7,27 @@ namespace DatabaseBatch.Infrastructure
 {
     public class SqlParseHelper
     {
-        private static readonly string[] _reservedKeyword = new string[]
+        private static readonly string[] _reservedBeginKeyword = new string[]
         {
             "PRIMARY KEY",
-            "INDEX",
-            "FOREIGN KEY"
+            "INDEX ",
+            "INDEX`",
+            "FOREIGN KEY",
+            "CONSTRAINT",
         };
+        private static readonly string[] _foreignKeyOptionKeyword = new string[] 
+        {
+            "ON UPDATE RESTRICT",
+            "ON UPDATE CASCADE",
+            "ON UPDATE SET NULL",
+            "ON UPDATE NO ACTION",
+
+            "ON DELETE RESTRICT",
+            "ON DELETE CASCADE",
+            "ON DELETE SET NULL",
+            "ON DELETE NO ACTION",
+        };
+
         public static TableInfoModel ParseMysqlDDLCommnad(string sql)
         {
             var keyword = "CREATE TABLE";
@@ -22,7 +37,7 @@ namespace DatabaseBatch.Infrastructure
             var tableNameIndex = line.ToUpper().IndexOf(keyword) + keyword.Length;
 
             var tableName = sql.Substring(tableNameIndex, openIndex - tableNameIndex).Replace("`", "").Trim();
-            var body = sql.Substring(openIndex + 1, closeIndex - openIndex - 1);
+            var body = sql.Substring(openIndex + 1, closeIndex - openIndex - 1).Trim();
 
             var findIndex = 0;
             var beforeIndex = 0;
@@ -34,21 +49,40 @@ namespace DatabaseBatch.Infrastructure
                 Columns = new List<ColumnModel>(),
             };
 
-            while (true)
+            while (findIndex <= body.Count())
             {
                 beforeIndex = findIndex;
                 findIndex = body.IndexOf(",", findIndex);
-
                 if (findIndex == -1)
-                    break;
+                {
+                    findIndex = body.Count();
+                }
                 
                 line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
                 isReservedKeyword = false;
-                for (int i=0; i<_reservedKeyword.Count(); i++)
+                for (int i=0; i< _reservedBeginKeyword.Count(); i++)
                 {
-                    isReservedKeyword = line.ToUpper().Contains(_reservedKeyword[i]);
+                    isReservedKeyword = line.ToUpper().StartsWith(_reservedBeginKeyword[i]);
                     if (isReservedKeyword)
+                    {
+                        if(!_reservedBeginKeyword[i].Equals("CONSTRAINT"))//base
+                        {
+                            findIndex = body.IndexOf(")", beforeIndex) + 1;
+                        }
+                        else//외래키인 경우
+                        {
+                            beforeIndex = body.IndexOf("REFERENCES", beforeIndex) + 1;
+                            findIndex = body.IndexOf(")", beforeIndex) + 1;
+                            foreach(var word in _foreignKeyOptionKeyword)
+                            {
+                                var tempIndex = body.IndexOf(word, findIndex);
+                                if (tempIndex > findIndex)
+                                    findIndex = tempIndex + word.Count();
+                            }
+                        }
                         break;
+                    }
+                        
                 }
                 if(isReservedKeyword == false)
                 {
@@ -66,11 +100,7 @@ namespace DatabaseBatch.Infrastructure
                         TableName = tableName
                     });
                 }
-                else
-                {
-                    tableInfoData.TableOption = body.Substring(beforeIndex, body.Length - beforeIndex).Trim();
-                    findIndex = body.Length - 1;
-                }
+                
                 findIndex++;
             }
             return tableInfoData;
