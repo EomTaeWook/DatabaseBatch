@@ -1,14 +1,16 @@
 ﻿namespace DatabaseBatch.Infrastructure
 {
-    public enum AlterTableType
+    public enum CommandType
     {
         Add,
         Modify,
         Drop,
+        Change, 
+        Alter,
 
         Max
     }
-    public enum ChangeType
+    public enum ClassificationType
     {
         Columns,
         Index,

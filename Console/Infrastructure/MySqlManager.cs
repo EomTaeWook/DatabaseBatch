@@ -1,5 +1,4 @@
-﻿using DatabaseBatch.Extensions;
-using DatabaseBatch.Models;
+﻿using DatabaseBatch.Models;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
@@ -12,10 +11,17 @@ namespace DatabaseBatch.Infrastructure
     public class MySqlManager : BaseSqlManager
     {
         private StringBuilder _buffer = new StringBuilder();
+
         private Dictionary<string, TableInfoModel> _bufferTable = new Dictionary<string, TableInfoModel>();
+
+        private Dictionary<string, TableInfoModel> _dbTable;
+        private Dictionary<string, TableInfoModel> _dbIndexTable;
         public override void Init(Config config)
         {
             _config = config;
+
+            _dbTable = GetMySqlTableInfo(new MySqlConnection(config.SqlConnect));
+            _dbIndexTable = GetMySqlIndexInfo(new MySqlConnection(config.SqlConnect));
         }
         public override void Publish()
         {
@@ -29,12 +35,17 @@ namespace DatabaseBatch.Infrastructure
         }
         public override void MakeScript()
         {
+            //기본 테이블 세팅
             LoadTable();
             InputManager.Instance.WriteInfo("");
+
+            //기본 테이블에 추가 데이터 추가
             LoadAlterTable();
             InputManager.Instance.WriteInfo("");
+
             LoadSp();
             InputManager.Instance.WriteInfo("");
+            //병합후 스크립트화
             OutputScript();
             InputManager.Instance.WriteInfo("");
         }
@@ -53,9 +64,33 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    if(SqlParseHelper.ParseMysqlAlterCommnad(sql, out AlterTableType alterTableType, out ChangeType changeType))
+                    if(MySqlParseHelper.ParseMysqlAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas))
                     {
+                        foreach(var data in parseSqlDatas)
+                        {
+                            if(data.ClassificationType == ClassificationType.Columns)
+                            {
+                                if (_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
+                                {
+                                    if (data.CommandType == CommandType.Change)
+                                    {
 
+                                    }
+                                    if(data.CommandType == CommandType.Drop)
+                                    {
+                                        _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
+                                    }
+                                }
+                                else
+                                {
+                                    _bufferTable[data.TableName].Columns.Add(data.ColumnName, data);
+                                }
+                            }
+                            else
+                            {
+
+                            }
+                        }
                     }
                 }
             }
@@ -63,7 +98,7 @@ namespace DatabaseBatch.Infrastructure
         }
         private void LoadTable()
         {
-            var currentDBTables = GetMySqlTableInfo(new MySqlConnection(_config.SqlConnect));
+            //var currentDBTables = GetMySqlTableInfo(new MySqlConnection(_config.SqlConnect));
 
             _buffer.AppendLine($"DELIMITER $$");
             _buffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_create_table`;");
@@ -84,15 +119,16 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    if(SqlParseHelper.ParseMysqlCreateTableCommnad(sql, out TableInfoModel parseTableData))
+                    if (MySqlParseHelper.ParseMysqlCreateTableCommnad(sql, out TableInfoModel parseTableData))
                     {
-                        if (!currentDBTables.ContainsKey(parseTableData.TableName.ToLower()))
+                        if (!_dbTable.ContainsKey(parseTableData.TableName.ToLower()))
                         {
                             _buffer.AppendLine(sql);
                             InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName} (이)가 생성됩니다.");
                         }
                         _bufferTable.Add(parseTableData.TableName, parseTableData);
 
+                        //기존 코드 => Craete 기준으로 변경 감지
                         //    var dbColumns = currentDBTables[parseTableData.TableName.ToLower()].Columns;
 
                         //    foreach (var columnModel in parseTableData.Columns)
@@ -110,7 +146,6 @@ namespace DatabaseBatch.Infrastructure
                         //        }
                         //    }
 
-                        //삭제는 AlterTable에서 알아서 하도록 유도하자
                         //foreach (var column in dbColumns)
                         //{
                         //    if (parseTableData.Columns.Any(r => r.NameCompare(column)))

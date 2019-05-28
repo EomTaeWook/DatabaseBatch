@@ -6,6 +6,6 @@ namespace DatabaseBatch.Models
     {
         public string TableName { get; set; }
         public string TableOption { get; set; } = "";
-        public List<ColumnModel> Columns { get; set; }
+        public Dictionary<string, ParseSqlData> Columns { get; set; } = new Dictionary<string, ParseSqlData>();
     }
 }

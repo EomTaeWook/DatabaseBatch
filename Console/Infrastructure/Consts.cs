@@ -14,5 +14,31 @@ namespace DatabaseBatch.Infrastructure
             { "long", "mediumtext"},
             { "bigint", "bigint(20)"},
         };
+
+        public static readonly string[] MySqlReservedKeyword = new string[]
+        {
+            "PRIMARY KEY",
+            "INDEX ",
+            "INDEX`",
+            "INDEX(",
+            "FOREIGN KEY",
+            "CONSTRAINT",
+            "COLUMN",
+            "UNIQUE INDEX",
+            "UNIQUE INDEX`",
+
+        };
+        public static readonly string[] MySqlFKOptionKeyword = new string[]
+        {
+            "ON UPDATE RESTRICT",
+            "ON UPDATE CASCADE",
+            "ON UPDATE SET NULL",
+            "ON UPDATE NO ACTION",
+
+            "ON DELETE RESTRICT",
+            "ON DELETE CASCADE",
+            "ON DELETE SET NULL",
+            "ON DELETE NO ACTION",
+        };
     }
 }

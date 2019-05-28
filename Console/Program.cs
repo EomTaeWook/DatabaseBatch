@@ -30,6 +30,7 @@ namespace DatabaseBatch
             catch(Exception ex)
             {
                 InputManager.Instance.WriteError($"{ex.Message} \r\n {ex.StackTrace}");
+
             }
             InputManager.Instance.Write("\n프로그램을 종료합니다. 아무키나 누르세요.");
             Console.ReadKey();

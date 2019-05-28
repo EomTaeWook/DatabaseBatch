@@ -58,6 +58,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Extensions\StringExtension.cs" />
     <Compile Include="Extensions\TableInfoModelExtension.cs" />
     <Compile Include="Infrastructure\Enums.cs" />
     <Compile Include="Infrastructure\BaseSqlManager.cs" />
@@ -65,10 +66,11 @@
     <Compile Include="Infrastructure\Interface\ISqlManager.cs" />
     <Compile Include="Infrastructure\MySqlManager.cs" />
     <Compile Include="Infrastructure\Singleton.cs" />
-    <Compile Include="Infrastructure\SqlParseHelper.cs" />
+    <Compile Include="Infrastructure\MySqlParseHelper.cs" />
     <Compile Include="Models\Config.cs" />
     <Compile Include="Infrastructure\Consts.cs" />
     <Compile Include="Models\Deployment.cs" />
+    <Compile Include="Models\ParseSqlData.cs" />
     <Compile Include="Models\ScriptCommandModel.cs" />
     <Compile Include="Models\ColumnModel.cs" />
     <Compile Include="Models\TableInfoModel.cs" />
