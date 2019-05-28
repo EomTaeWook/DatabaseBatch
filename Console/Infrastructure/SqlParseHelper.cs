@@ -28,16 +28,46 @@ namespace DatabaseBatch.Infrastructure
             "ON DELETE SET NULL",
             "ON DELETE NO ACTION",
         };
+        public static bool ParseMysqlAlterCommnad(string sql, out AlterTableType alterTableType, out ChangeType changeType)
+        {
+            alterTableType = AlterTableType.Max;
+            changeType = ChangeType.Max;
 
-        public static TableInfoModel ParseMysqlDDLCommnad(string sql)
+            var keyword = "TABLE ";
+
+            var openIndex = sql.IndexOf(keyword);
+            
+            if (openIndex == -1)
+            {
+                throw new Exception($"{sql}");
+            }
+            openIndex += keyword.Length;
+            var closeIndex = sql.IndexOfAny(new char[] { ' ', '\r' }, openIndex);
+            var tableName = sql.Substring(openIndex, closeIndex - openIndex);
+
+            var findIndex = closeIndex;
+            while (findIndex <= sql.Length)
+            {
+
+            }
+
+            return true;
+
+        }
+        public static bool ParseMysqlCreateTableCommnad(string sql , out TableInfoModel tableInfoData)
         {
             var keyword = "CREATE TABLE";
             var openIndex = sql.IndexOf("(");
             var closeIndex = sql.LastIndexOf(")");
+            tableInfoData = new TableInfoModel()
+            {
+                Columns = new List<ColumnModel>(),
+            };
 
             if (openIndex == -1)
-                throw new Exception($"SQL : {sql}");
-
+            {
+                throw new Exception($"{sql}");
+            }
             var line = sql.Substring(0, openIndex);
             var tableNameIndex = line.ToUpper().IndexOf(keyword) + keyword.Length;
 
@@ -48,11 +78,7 @@ namespace DatabaseBatch.Infrastructure
             var beforeIndex = 0;
             var isReservedKeyword = false;
 
-            var tableInfoData = new TableInfoModel()
-            {
-                TableName = tableName,
-                Columns = new List<ColumnModel>(),
-            };
+            tableInfoData.TableName = tableName;
 
             while (findIndex <= body.Count())
             {
@@ -94,7 +120,19 @@ namespace DatabaseBatch.Infrastructure
                     var option = "";
                     for (int ii = 2; ii < datas.Count; ii++)
                     {
-                        option += $"{datas[ii]} ";
+                        if(datas[ii].StartsWith("(") && datas[ii].EndsWith(")"))
+                        {
+                            datas[1] += datas[ii];
+                        }
+                        else
+                        {
+                            option += $"{datas[ii]} ";
+                        }
+                        
+                    }
+                    if(Consts.BaseMySqlDataType.ContainsKey(datas[1]))
+                    {
+                        datas[1] = Consts.BaseMySqlDataType[datas[1]];
                     }
                     tableInfoData.Columns.Add(new ColumnModel()
                     {
@@ -107,7 +145,7 @@ namespace DatabaseBatch.Infrastructure
 
                 findIndex++;
             }
-            return tableInfoData;
+            return true;
         }
 
         public static string AlterMySqlColumn(ColumnModel model, AlterTableType type)

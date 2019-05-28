@@ -12,6 +12,7 @@ namespace DatabaseBatch.Infrastructure
     public class MySqlManager : BaseSqlManager
     {
         private StringBuilder _buffer = new StringBuilder();
+        private Dictionary<string, TableInfoModel> _bufferTable = new Dictionary<string, TableInfoModel>();
         public override void Init(Config config)
         {
             _config = config;
@@ -30,12 +31,36 @@ namespace DatabaseBatch.Infrastructure
         {
             LoadTable();
             InputManager.Instance.WriteInfo("");
+            LoadAlterTable();
+            InputManager.Instance.WriteInfo("");
             LoadSp();
             InputManager.Instance.WriteInfo("");
             OutputScript();
             InputManager.Instance.WriteInfo("");
         }
+        private void LoadAlterTable()
+        {
+            InputManager.Instance.WriteInfo($">>>>Load AlterTable Files : {_config.AlterTablePath}");
+            var directoryInfo = new DirectoryInfo(_config.AlterTablePath);
+            var files = GetSqlFiles(directoryInfo);
+            for (int i = 0; i < files.Count; i++)
+            {
+                InputManager.Instance.Write($"Read File : {files[i].Name}");
+                using (var sr = new StreamReader(files[i].OpenRead()))
+                {
+                    var sql = sr.ReadToEnd();
+                    sr.Close();
+                    if (string.IsNullOrEmpty(sql))
+                        throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
+                    if(SqlParseHelper.ParseMysqlAlterCommnad(sql, out AlterTableType alterTableType, out ChangeType changeType))
+                    {
+
+                    }
+                }
+            }
+
+        }
         private void LoadTable()
         {
             var currentDBTables = GetMySqlTableInfo(new MySqlConnection(_config.SqlConnect));
@@ -59,39 +84,40 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    var parseTableData = SqlParseHelper.ParseMysqlDDLCommnad(sql);
-
-                    if (currentDBTables.ContainsKey(parseTableData.TableName.ToLower()))
+                    if(SqlParseHelper.ParseMysqlCreateTableCommnad(sql, out TableInfoModel parseTableData))
                     {
-                        var dbColumns = currentDBTables[parseTableData.TableName.ToLower()].Columns;
+                        if (!currentDBTables.ContainsKey(parseTableData.TableName.ToLower()))
+                        {
+                            _buffer.AppendLine(sql);
+                            InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName} (이)가 생성됩니다.");
+                        }
+                        _bufferTable.Add(parseTableData.TableName, parseTableData);
 
-                        foreach (var columnModel in parseTableData.Columns)
-                        {
-                            var dbColumn = dbColumns.Where(r => r.NameCompare(columnModel)).FirstOrDefault();
-                            if (dbColumn == null)
-                            {
-                                _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(columnModel, AlterTableType.Add));
-                                InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] (이)가 추가됩니다.");
-                            }
-                            else if (!dbColumn.TypeCompare(columnModel))
-                            {
-                                _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(columnModel, AlterTableType.Modify));
-                                InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] [{dbColumn.ColumnType}] 에서 [{columnModel.ColumnType}] 으로 변경됩니다.");
-                            }
-                        }
-                        foreach (var column in dbColumns)
-                        {
-                            if (parseTableData.Columns.Any(r => r.NameCompare(column)))
-                                continue;
-                            _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(column, AlterTableType.Drop));
-                            InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{column.ColumnName}] (이)가 삭제됩니다.");
-                        }
-                    }
-                    else
-                    {
-                        //새로 생긴 테이블
-                        _buffer.AppendLine(sql);
-                        InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName} (이)가 생성됩니다.");
+                        //    var dbColumns = currentDBTables[parseTableData.TableName.ToLower()].Columns;
+
+                        //    foreach (var columnModel in parseTableData.Columns)
+                        //    {
+                        //        var dbColumn = dbColumns.Where(r => r.NameCompare(columnModel)).FirstOrDefault();
+                        //        if (dbColumn == null)
+                        //        {
+                        //            _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(columnModel, AlterTableType.Add));
+                        //            InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] (이)가 추가됩니다.");
+                        //        }
+                        //        else if (!dbColumn.TypeCompare(columnModel))
+                        //        {
+                        //            _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(columnModel, AlterTableType.Modify));
+                        //            InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] [{dbColumn.ColumnType}] 에서 [{columnModel.ColumnType}] 으로 변경됩니다.");
+                        //        }
+                        //    }
+
+                        //삭제는 AlterTable에서 알아서 하도록 유도하자
+                        //foreach (var column in dbColumns)
+                        //{
+                        //    if (parseTableData.Columns.Any(r => r.NameCompare(column)))
+                        //        continue;
+                        //    _buffer.AppendLine(SqlParseHelper.AlterMySqlColumn(column, AlterTableType.Drop));
+                        //    InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{column.ColumnName}] (이)가 삭제됩니다.");
+                        //} 
                     }
                 }
             }
