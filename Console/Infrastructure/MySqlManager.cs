@@ -19,7 +19,7 @@ namespace DatabaseBatch.Infrastructure
         public override void Publish()
         {
             var deployment = _config.Publish;
-            for (var e = PublishDeploymentType.PreDeployment; e < PublishDeploymentType.Max; ++e )
+            for (var e = PublishDeploymentType.PreDeployment; e < PublishDeploymentType.Max; ++e)
             {
                 var prop = deployment.GetType().GetProperties().Where(r => r.Name == e.ToString()).FirstOrDefault();
                 var path = deployment.GetType().GetProperty(prop.Name).GetValue(deployment).ToString();
@@ -35,7 +35,7 @@ namespace DatabaseBatch.Infrastructure
             OutputScript();
             InputManager.Instance.WriteInfo("");
         }
-        
+
         private void LoadTable()
         {
             var currentDBTables = GetMySqlTableInfo(new MySqlConnection(_config.SqlConnect));
@@ -47,8 +47,8 @@ namespace DatabaseBatch.Infrastructure
 
             var directoryInfo = new DirectoryInfo(_config.TablePath);
             var files = GetSqlFiles(directoryInfo);
-            
-            for(int i=0; i< files.Count; i++)
+
+            for (int i = 0; i < files.Count; i++)
             {
                 InputManager.Instance.Write($"Read File : {files[i].Name}");
                 using (var sr = new StreamReader(files[i].OpenRead()))
@@ -60,12 +60,12 @@ namespace DatabaseBatch.Infrastructure
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
                     var parseTableData = SqlParseHelper.ParseMysqlDDLCommnad(sql);
-                   
-                    if(currentDBTables.ContainsKey(parseTableData.TableName.ToLower()))
+
+                    if (currentDBTables.ContainsKey(parseTableData.TableName.ToLower()))
                     {
                         var dbColumns = currentDBTables[parseTableData.TableName.ToLower()].Columns;
 
-                        foreach(var columnModel in parseTableData.Columns)
+                        foreach (var columnModel in parseTableData.Columns)
                         {
                             var dbColumn = dbColumns.Where(r => r.NameCompare(columnModel)).FirstOrDefault();
                             if (dbColumn == null)
@@ -79,7 +79,7 @@ namespace DatabaseBatch.Infrastructure
                                 InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] [{dbColumn.ColumnType}] 에서 [{columnModel.ColumnType}] 으로 변경됩니다.");
                             }
                         }
-                        foreach(var column in dbColumns)
+                        foreach (var column in dbColumns)
                         {
                             if (parseTableData.Columns.Any(r => r.NameCompare(column)))
                                 continue;

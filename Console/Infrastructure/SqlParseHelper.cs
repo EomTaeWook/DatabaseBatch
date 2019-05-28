@@ -12,10 +12,11 @@ namespace DatabaseBatch.Infrastructure
             "PRIMARY KEY",
             "INDEX ",
             "INDEX`",
+            "INDEX(",
             "FOREIGN KEY",
             "CONSTRAINT",
         };
-        private static readonly string[] _foreignKeyOptionKeyword = new string[] 
+        private static readonly string[] _foreignKeyOptionKeyword = new string[]
         {
             "ON UPDATE RESTRICT",
             "ON UPDATE CASCADE",
@@ -33,6 +34,10 @@ namespace DatabaseBatch.Infrastructure
             var keyword = "CREATE TABLE";
             var openIndex = sql.IndexOf("(");
             var closeIndex = sql.LastIndexOf(")");
+
+            if (openIndex == -1)
+                throw new Exception($"SQL : {sql}");
+
             var line = sql.Substring(0, openIndex);
             var tableNameIndex = line.ToUpper().IndexOf(keyword) + keyword.Length;
 
@@ -57,15 +62,15 @@ namespace DatabaseBatch.Infrastructure
                 {
                     findIndex = body.Count();
                 }
-                
+
                 line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
                 isReservedKeyword = false;
-                for (int i=0; i< _reservedBeginKeyword.Count(); i++)
+                for (int i = 0; i < _reservedBeginKeyword.Count(); i++)
                 {
                     isReservedKeyword = line.ToUpper().StartsWith(_reservedBeginKeyword[i]);
                     if (isReservedKeyword)
                     {
-                        if(!_reservedBeginKeyword[i].Equals("CONSTRAINT"))//base
+                        if (!_reservedBeginKeyword[i].Equals("CONSTRAINT") && !_reservedBeginKeyword[i].Equals("FOREIGN KEY"))//base
                         {
                             findIndex = body.IndexOf(")", beforeIndex) + 1;
                         }
@@ -73,7 +78,7 @@ namespace DatabaseBatch.Infrastructure
                         {
                             beforeIndex = body.IndexOf("REFERENCES", beforeIndex) + 1;
                             findIndex = body.IndexOf(")", beforeIndex) + 1;
-                            foreach(var word in _foreignKeyOptionKeyword)
+                            foreach (var word in _foreignKeyOptionKeyword)
                             {
                                 var tempIndex = body.IndexOf(word, findIndex);
                                 if (tempIndex > findIndex)
@@ -82,9 +87,8 @@ namespace DatabaseBatch.Infrastructure
                         }
                         break;
                     }
-                        
                 }
-                if(isReservedKeyword == false)
+                if (isReservedKeyword == false)
                 {
                     var datas = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
                     var option = "";
@@ -100,15 +104,15 @@ namespace DatabaseBatch.Infrastructure
                         TableName = tableName
                     });
                 }
-                
+
                 findIndex++;
             }
             return tableInfoData;
         }
-        
+
         public static string AlterMySqlColumn(ColumnModel model, AlterTableType type)
         {
-            return $"ALTER TABLE `{model.TableName}` {type.ToString()} COLUMN `{model.ColumnName}` {(type != AlterTableType.Drop ?$"{model.ColumnType} {model.ColumnOptions}" : "")};";
+            return $"ALTER TABLE `{model.TableName}` {type.ToString()} COLUMN `{model.ColumnName}` {(type != AlterTableType.Drop ? $"{model.ColumnType} {model.ColumnOptions}" : "")};";
         }
     }
 }

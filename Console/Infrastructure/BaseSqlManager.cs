@@ -30,7 +30,7 @@ namespace DatabaseBatch.Infrastructure
             {
                 var tableName = reader["TABLE_NAME"].ToString().ToLower();
                 var columnName = reader["COLUMN_NAME"].ToString().ToLower();
-                var columnTypes = reader["COLUMN_TYPE"].ToString().ToLower().Split(new char[] {' '}, StringSplitOptions.RemoveEmptyEntries);
+                var columnTypes = reader["COLUMN_TYPE"].ToString().ToLower().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 var columnOption = "";
                 if (columnTypes.Count() > 1)
                 {
@@ -43,7 +43,7 @@ namespace DatabaseBatch.Infrastructure
                     ColumnType = columnTypes[0],
                     ColumnOptions = columnOption
                 };
-                
+
                 if (!tables.ContainsKey(column.TableName))
                 {
                     tables.Add(column.TableName, new TableInfoModel() { Columns = new List<ColumnModel>() });
