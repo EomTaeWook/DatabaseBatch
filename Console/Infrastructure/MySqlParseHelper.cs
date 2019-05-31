@@ -27,6 +27,11 @@ namespace DatabaseBatch.Infrastructure
                     break;
                 }
                 line = sql.Substring(beforeIndex, findIndex - beforeIndex).Trim().Replace(replacement, " ");
+                if(line.ToUpper().StartsWith("USE"))
+                {
+                    findIndex = line.Count() + 1;
+                    continue;
+                }
 
                 var subBeforCommandFindIndex = 0;
                 var subCommandFindIndex = line.IndexOf(' ', table.Length);
@@ -56,31 +61,59 @@ namespace DatabaseBatch.Infrastructure
                     }
                     data.TableName = tableName;
                     data.CommandType = type;
-                    if (body.ToUpper().StartsWith("COLUMN"))
+                    var isReserved = false;
+                    for(int i=0; i<Consts.MySqlReservedKeyword.Count(); i++)
                     {
-                        //컬럼이 변경인 경우 CreateTable에서 생성된 테이블에 변경점 적용
+                        if(body.ToUpper().StartsWith(Consts.MySqlReservedKeyword[i]))
+                        {
+                            isReserved = true;
+                            break;
+                        }
+                    }
+                    var columnNameIndex = isReserved ? 1 : 0;
+                    if (isReserved == false && type == CommandType.Alter)
+                    {
+                        var columnInfo = body.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        data.ColumnName = columnInfo[columnNameIndex].Replace("`", "");
+                        data.Command = body;
+                    }
+                    else if(isReserved == false || body.ToUpper().StartsWith("COLUMN"))
+                    {
                         data.ClassificationType = ClassificationType.Columns;
-                        var columnInfo = body.Split(new char[] {' '}, StringSplitOptions.RemoveEmptyEntries);
-                        var typeIndex = 2;
+                        var columnInfo = body.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        var typeIndex = isReserved ? 2 : 1;
                         if (type == CommandType.Change)
                         {
                             data.ChangeColumnName = columnInfo[2].Replace("`", "");
                             typeIndex++;
                         }
-                        data.ColumnName = columnInfo[1].Replace("`", "");
+                        data.ColumnName = columnInfo[columnNameIndex].Replace("`", "");
                         if (Consts.BaseMySqlDataType.ContainsKey(columnInfo[typeIndex].ToLower()))
                         {
                             data.ColumnType = columnInfo[typeIndex] = Consts.BaseMySqlDataType[columnInfo[typeIndex].ToLower()];
                         }
                         typeIndex++;
                         data.ColumnOptions = "";
-                        for (int i= typeIndex; i< columnInfo.Count(); i++)
+                        for (int i = typeIndex; i < columnInfo.Count(); i++)
                         {
                             data.ColumnOptions += columnInfo[i] + " ";
                         }
                     }
                     else
                     {
+                        foreach(var keyword in Consts.MySqlReservedKeyword)
+                        {
+                            if (!body.ToUpper().StartsWith(keyword))
+                                continue;
+                            var temp = new string(body.Skip(keyword.Length).ToArray()).Replace("`", " ").Trim();
+                            var index = temp.IndexOfAny(new char[] { ',', ';', ' ' });
+                            if(index == -1)
+                            {
+                                index = temp.Length;
+                            }
+                            data.ColumnName = temp.Substring(0, index).Replace("`", "");
+                            break;
+                        }
                         data.Command = body;
                     }
                     parseSqlDatas.Add(data);
@@ -186,6 +219,10 @@ namespace DatabaseBatch.Infrastructure
         public static string AlterMySqlColumn(ColumnModel model, CommandType type)
         {
             return $"ALTER TABLE `{model.TableName}` {type.ToString()} COLUMN `{model.ColumnName}` {(type != CommandType.Drop ? $"{model.ColumnType} {model.ColumnOptions}" : "")};";
+        }
+        public static string CreateSqlCommand(ParseSqlData model)
+        {
+            return $"ALTER TABLE `{model.TableName}` {model.CommandType.ToString().ToUpper()} {model.Command}";
         }
     }
 }

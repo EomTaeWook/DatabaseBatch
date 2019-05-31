@@ -2,7 +2,9 @@
 using DatabaseBatch.Infrastructure.Interface;
 using DatabaseBatch.Models;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace DatabaseBatch
 {
@@ -29,8 +31,26 @@ namespace DatabaseBatch
             }
             catch(Exception ex)
             {
-                InputManager.Instance.WriteError($"{ex.Message} \r\n {ex.StackTrace}");
+                var st = new StackTrace(ex, true);
+                var frames = st.GetFrames().Select(f => 
+                new
+                {
+                    FileName = f.GetFileName(),
+                    LineNumber = f.GetFileLineNumber(),
+                    ColumnNumber = f.GetFileColumnNumber(),
+                    Method = f.GetMethod(),
+                    Class = f.GetMethod().DeclaringType,
+                });
+                foreach(var frame in frames)
+                {
+                    if (string.IsNullOrEmpty(frame.FileName))
+                        continue;
+                    InputManager.Instance.WriteError($"File : {frame.FileName} line : {frame.LineNumber}");
+                }
+                InputManager.Instance.WriteError($"");
 
+                InputManager.Instance.WriteError($"{ex.Message} \r\n {ex.StackTrace}");
+                InputManager.Instance.WriteError($"");
             }
             InputManager.Instance.Write("\n프로그램을 종료합니다. 아무키나 누르세요.");
             Console.ReadKey();

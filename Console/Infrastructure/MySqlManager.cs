@@ -11,11 +11,12 @@ namespace DatabaseBatch.Infrastructure
     public class MySqlManager : BaseSqlManager
     {
         private StringBuilder _buffer = new StringBuilder();
+        private StringBuilder _otherBuffer = new StringBuilder();
 
         private Dictionary<string, TableInfoModel> _bufferTable = new Dictionary<string, TableInfoModel>();
 
         private Dictionary<string, TableInfoModel> _dbTable;
-        private Dictionary<string, TableInfoModel> _dbIndexTable;
+        private Dictionary<string, List<IndexModel>> _dbIndexTable;
         public override void Init(Config config)
         {
             _config = config;
@@ -41,6 +42,7 @@ namespace DatabaseBatch.Infrastructure
 
             //기본 테이블에 추가 데이터 추가
             LoadAlterTable();
+            MakeTableScript();
             InputManager.Instance.WriteInfo("");
 
             LoadSp();
@@ -49,6 +51,33 @@ namespace DatabaseBatch.Infrastructure
             OutputScript();
             InputManager.Instance.WriteInfo("");
         }
+        private void MakeTableScript()
+        {
+            //테이블 변경점을 찾아보자
+            foreach(var table in _bufferTable)
+            {
+                if(_dbTable.ContainsKey(table.Key))
+                {
+                    var connectDbTable = _dbTable[table.Key];
+                    foreach (var column in table.Value.Columns)
+                    {
+                        if(connectDbTable.Columns.ContainsKey(column.Key))
+                        {
+                            //변경
+                            var connectDbColumn = connectDbTable.Columns[column.Key];
+                            
+
+                        }
+                        else
+                        {
+
+                            //InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName}] ColumnName[{columnModel.ColumnName}] (이)가 추가됩니다.");
+                        }
+                    }
+                }
+            }
+        }
+
         private void LoadAlterTable()
         {
             InputManager.Instance.WriteInfo($">>>>Load AlterTable Files : {_config.AlterTablePath}");
@@ -70,11 +99,17 @@ namespace DatabaseBatch.Infrastructure
                         {
                             if(data.ClassificationType == ClassificationType.Columns)
                             {
-                                if (_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
+                                if(data.CommandType == CommandType.Alter)
+                                {
+                                    InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
+                                    _otherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                }
+                                else if (_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
                                 {
                                     if (data.CommandType == CommandType.Change)
                                     {
-
+                                        _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
+                                        _bufferTable[data.TableName].Columns.Add(data.ChangeColumnName, data);
                                     }
                                     if(data.CommandType == CommandType.Drop)
                                     {
@@ -88,7 +123,32 @@ namespace DatabaseBatch.Infrastructure
                             }
                             else
                             {
-
+                                var index = _dbIndexTable[data.TableName].Find(r=>r.IndexName == data.ColumnName);
+                                if(index == null && data.CommandType == CommandType.Add)
+                                {
+                                    InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] Name[ {data.ColumnName} ] [ {data.Command} ] (이)가 추가됩니다.");
+                                    _dbIndexTable[data.TableName].Add(new IndexModel()
+                                    {
+                                        IndexName = data.ColumnName,
+                                        TableName = data.TableName
+                                    });
+                                    _otherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                }
+                                else if (index != null && data.CommandType == CommandType.Drop)
+                                {
+                                    InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] Name[ {data.ColumnName} ] (이)가 제거됩니다.");
+                                    _dbIndexTable[data.TableName].Add(new IndexModel()
+                                    {
+                                        IndexName = data.ColumnName,
+                                        TableName = data.TableName
+                                    });
+                                    _otherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                }
+                                else if(data.CommandType == CommandType.Alter)
+                                {
+                                    InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
+                                    _otherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                }
                             }
                         }
                     }
@@ -124,7 +184,7 @@ namespace DatabaseBatch.Infrastructure
                         if (!_dbTable.ContainsKey(parseTableData.TableName.ToLower()))
                         {
                             _buffer.AppendLine(sql);
-                            InputManager.Instance.WriteTrace($"Table[{parseTableData.TableName} (이)가 생성됩니다.");
+                            InputManager.Instance.WriteTrace($"Table[ {parseTableData.TableName} ] (이)가 생성됩니다.");
                         }
                         _bufferTable.Add(parseTableData.TableName, parseTableData);
 
@@ -191,7 +251,7 @@ namespace DatabaseBatch.Infrastructure
         }
         private void LoadSp()
         {
-            _buffer.AppendLine();
+            _otherBuffer.AppendLine();
             InputManager.Instance.WriteInfo($">>>Load Stored Procedure Files : {_config.StoredProcedurePath}");
             var directoryInfo = new DirectoryInfo(_config.StoredProcedurePath);
             var files = GetSqlFiles(directoryInfo);
@@ -206,8 +266,8 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    _buffer.AppendLine(sql);
-                    _buffer.AppendLine();
+                    _otherBuffer.AppendLine(sql);
+                    _otherBuffer.AppendLine();
                 }
             }
         }

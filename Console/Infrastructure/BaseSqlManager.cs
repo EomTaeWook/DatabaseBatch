@@ -15,9 +15,9 @@ namespace DatabaseBatch.Infrastructure
 
         protected Config _config;
 
-        protected Dictionary<string, TableInfoModel> GetMySqlIndexInfo(IDbConnection conn)
+        protected Dictionary<string, List<IndexModel>> GetMySqlIndexInfo(IDbConnection conn)
         {
-            var tables = new Dictionary<string, TableInfoModel>();
+            var tables = new Dictionary<string, List<IndexModel>>();
             var sqlCommand = $"SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = '{conn.Database}' AND INDEX_NAME <> 'PRIMARY';";
             conn.Open();
             var cmd = conn.CreateCommand();
@@ -29,18 +29,18 @@ namespace DatabaseBatch.Infrastructure
             while (reader.Read())
             {
                 var tableName = reader["TABLE_NAME"].ToString().ToLower();
-                var columnName = reader["INDEX_NAME"].ToString().ToLower();
-                var column = new ParseSqlData()
+                var indexName = reader["INDEX_NAME"].ToString().ToLower();
+                var indexModel = new IndexModel()
                 {
                     TableName = tableName,
-                    ColumnName = columnName,
+                    IndexName = indexName,
                 };
 
-                if (!tables.ContainsKey(column.TableName))
+                if (!tables.ContainsKey(indexModel.TableName))
                 {
-                    tables.Add(column.TableName, new TableInfoModel());
+                    tables.Add(indexModel.TableName, new List<IndexModel>());
                 }
-                tables[column.TableName].Columns.Add(column.ColumnName, column);
+                tables[indexModel.TableName].Add(indexModel);
             }
             conn.Close();
             return tables;

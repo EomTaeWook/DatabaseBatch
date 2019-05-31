@@ -23,9 +23,13 @@ namespace DatabaseBatch.Infrastructure
             "INDEX(",
             "FOREIGN KEY",
             "CONSTRAINT",
+           
             "COLUMN",
+            "FULLTEXT ",
+            "SPATIAL ",
             "UNIQUE INDEX",
-            "UNIQUE INDEX`",
+            "FULLTEXT INDEX",
+            "SPATIAL INDEX ",
 
         };
         public static readonly string[] MySqlFKOptionKeyword = new string[]
