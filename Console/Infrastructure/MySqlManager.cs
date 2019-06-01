@@ -116,7 +116,7 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    if(MySqlParseHelper.ParseMysqlAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas))
+                    if(MySqlParseHelper.ParseAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas))
                     {
                         foreach(var data in parseSqlDatas)
                         {
@@ -211,7 +211,7 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    if (MySqlParseHelper.ParseMysqlCreateTableCommnad(sql, out TableInfoModel parseTableData))
+                    if (MySqlParseHelper.ParseCreateTableCommnad(sql, out TableInfoModel parseTableData))
                     {
                         if (!_dbTable.ContainsKey(parseTableData.TableName.ToLower()))
                         {
