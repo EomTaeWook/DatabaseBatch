@@ -47,6 +47,10 @@ namespace DatabaseBatch.Infrastructure
                         subCommandFindIndex = line.Length;
 
                     var newLine = line.Substring(subBeforCommandFindIndex, subCommandFindIndex - subBeforCommandFindIndex).Trim();
+                    if(newLine.ToUpper().StartsWith(table))
+                    {
+                        throw new Exception($"sql : {sql}");
+                    }
 
                     //Command 뜯어내고
                     var commandIndex = newLine.IndexOf(" ");
@@ -216,13 +220,17 @@ namespace DatabaseBatch.Infrastructure
             return true;
         }
 
-        public static string AlterMySqlColumn(ColumnModel model, CommandType type)
+        public static string AlterMySqlColumnChange(ParseSqlData model)
         {
-            return $"ALTER TABLE `{model.TableName}` {type.ToString()} COLUMN `{model.ColumnName}` {(type != CommandType.Drop ? $"{model.ColumnType} {model.ColumnOptions}" : "")};";
+            return $"ALTER TABLE `{model.TableName}` CHANGE COLUMN `{model.ColumnName}` `{model.ChangeColumnName}` {model.ColumnType} {model.ColumnOptions};";
+        }
+        public static string AlterMySqlColumn(ParseSqlData model)
+        {
+            return $"ALTER TABLE `{model.TableName}` {model.CommandType.ToString().ToUpper()} COLUMN `{model.ColumnName}` {model.ColumnType} {(model.CommandType != CommandType.Drop ? $"{model.ColumnOptions}" : "")};";
         }
         public static string CreateSqlCommand(ParseSqlData model)
         {
-            return $"ALTER TABLE `{model.TableName}` {model.CommandType.ToString().ToUpper()} {model.Command}";
+            return $"ALTER TABLE `{model.TableName}` {model.CommandType.ToString().ToUpper()} {model.Command};";
         }
     }
 }
