@@ -187,25 +187,31 @@ namespace DatabaseBatch.Infrastructure
                         {
                             findIndex = body.IndexOf(")", beforeIndex) + 1;
                         }
-                        //else//외래키인 경우
-                        //{
-                        //    //var maxIndex = 0;
-                        //    //for(int i=0; i< Consts.MySqlReservedKeyword[key].Count; i++)
-                        //    //{
-                        //    //    var index = line.IndexOf(Consts.MySqlReservedKeyword[key][i]);
-                        //    //    if (maxIndex <= index)
-                        //    //    {
-                        //    //        maxIndex = index + Consts.MySqlReservedKeyword[key][i].Length;
-                        //    //    }
-                        //    //}
-                        //    //foreach (var word in Consts.MySqlFKOptionKeyword)
-                        //    //{
-                        //    //    var index = line.IndexOf(word, maxIndex);
-                        //    //    if (maxIndex < index)
-                        //    //        maxIndex = index + word.Length;
-                        //    //}
-                        //    //findIndex += maxIndex;
-                        //}
+                        else//외래키인 경우
+                        {
+                            var maxIndex = 0;
+                            for (int i = 0; i < Consts.MySqlReservedKeyword[key].Count; i++)
+                            {
+                                var index = body.IndexOf(Consts.MySqlReservedKeyword[key][i], beforeIndex);
+                                if (maxIndex <= index)
+                                {
+                                    maxIndex = index + Consts.MySqlReservedKeyword[key][i].Length;
+                                }
+                            }
+                            findIndex = maxIndex;
+                            findIndex = body.IndexOf(")", findIndex) + 1;
+                            //line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
+                            maxIndex = body.IndexOf(",", findIndex);
+                            if (maxIndex == -1)
+                            {
+                                findIndex = body.Length;
+                            }
+                            else
+                            {
+                                findIndex = maxIndex;
+                            }
+                            //line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
+                        }
                         break;
                     }
                 }

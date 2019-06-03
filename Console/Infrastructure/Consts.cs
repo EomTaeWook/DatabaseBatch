@@ -16,7 +16,7 @@ namespace DatabaseBatch.Infrastructure
         };
         public static readonly Dictionary<string, List<string>> MySqlReservedKeyword = new Dictionary<string, List<string>>()
         {
-            { "PRIMARY KEY", new List<string>(){ } },
+            { "PRIMARY KEY", new List<string>(){")" } },
             { "INDEX", new List<string>(){ "`", " ", } },
 
             { "FOREIGN KEY", new List<string>(){ "REFERENCES" } },
