@@ -12,127 +12,132 @@ namespace DatabaseBatch.Infrastructure
         {
             parseSqlDatas = new List<ParseSqlData>();
             var replacement = new string[] { "\r\n", "\t" };
-            var findIndex = 0;
-            var beforeIndex = findIndex;
+            var fileReadIndex = 0;
+            var beforeFileIndex = fileReadIndex;
             var line = "";
             var findKeyword = new char[] { ';' };
 
-            while(findIndex <= sql.Count())
+            while(fileReadIndex <= sql.Count())
             {
-                beforeIndex = findIndex;
-                findIndex = sql.IndexOfAny(findKeyword, findIndex);
-                if (findIndex == -1)
+                beforeFileIndex = fileReadIndex;
+                fileReadIndex = sql.IndexOfAny(findKeyword, fileReadIndex);
+                if (fileReadIndex == -1)
                 {
                     break;
                 }
-                line = sql.Substring(beforeIndex, findIndex - beforeIndex).Trim().Replace(replacement, " ");
+                line = sql.Substring(beforeFileIndex, fileReadIndex - beforeFileIndex).Trim().Replace(replacement, " ");
                 if(line.ToUpper().StartsWith("USE"))
                 {
-                    findIndex = line.Count() + 1;
+                    fileReadIndex = line.Count() + 1;
                     continue;
                 }
-                if(!ParseSubAlterTableCommand(line, out ParseSqlData parseSqlData))
+
+                var subFindIndex = 0;
+                var subBeforeFindIndex = subFindIndex;
+                var table = "ALTER TABLE ";
+                subFindIndex = line.IndexOf(' ', table.Length);
+                var tableName = line.Substring(table.Length, subFindIndex - table.Length).Replace("`", "");
+                while (subFindIndex <= line.Length)
                 {
-                    throw new Exception($"sql : {sql}");
+                    subBeforeFindIndex = subFindIndex++;
+                    subFindIndex = line.IndexOfAny(new char[] { ',', ';' }, subFindIndex);
+                    if (subFindIndex == -1)
+                        subFindIndex = line.Length;
+
+                    var newCommand = line.Substring(subBeforeFindIndex, subFindIndex - subBeforeFindIndex).Trim();
+
+                    if (!ParseSubAlterTableCommand(newCommand, out ParseSqlData parseSqlData))
+                    {
+                        throw new Exception($"sql : {sql}");
+                    }
+                    parseSqlData.TableName = tableName;
+                    parseSqlDatas.Add(parseSqlData);
+                    subFindIndex++;
                 }
-                parseSqlDatas.Add(parseSqlData);
-                findIndex++;
+                fileReadIndex++;
             }
             return true;
 
         }
         private static bool ParseSubAlterTableCommand(string line, out ParseSqlData parseSqlData)
         {
-            var table = "ALTER TABLE ";
             parseSqlData = new ParseSqlData();
-            var findIndex = line.IndexOf(' ', table.Length);
+            var commandIndex = line.IndexOf(" ");
+            var command = line.Substring(0, commandIndex++);
 
-            var tableName = line.Substring(table.Length, findIndex - table.Length).Replace("`", "");
-            var beforeFindIndex = findIndex++;
-
-            while (findIndex <= line.Length)
+            //이후 무엇이 바뀌었는지 뜯어낸다.
+            var body = line.Substring(commandIndex, line.Length - commandIndex);
+            if (!Enum.TryParse(command, true, out CommandType type))
             {
-                beforeFindIndex = findIndex;
-                findIndex = line.IndexOfAny(new char[] { ',', ';' }, findIndex);
-                if (findIndex == -1)
-                    findIndex = line.Length;
-
-                var newLine = line.Substring(beforeFindIndex, findIndex - beforeFindIndex).Trim();
-                if (newLine.ToUpper().StartsWith(table))
-                {
-                    return false;
-                }
-
-                //Command 뜯어내고
-                var commandIndex = newLine.IndexOf(" ");
-                var command = newLine.Substring(0, commandIndex++);
-
-                //이후 무엇이 바뀌었는지 뜯어낸다.
-                var body = newLine.Substring(commandIndex, newLine.Length - commandIndex);
-                if (!Enum.TryParse(command, true, out CommandType type))
-                {
-                    return false;
-                }
-                parseSqlData.TableName = tableName;
-                parseSqlData.CommandType = type;
-                var isReserved = false;
-                for (int i = 0; i < Consts.MySqlReservedKeyword.Count(); i++)
-                {
-                    if (body.ToUpper().StartsWith(Consts.MySqlReservedKeyword[i]))
-                    {
-                        isReserved = true;
-                        break;
-                    }
-                }
-                var columnNameIndex = isReserved ? 1 : 0;
-                if (isReserved == false && type == CommandType.Alter)
-                {
-                    var columnInfo = body.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    parseSqlData.ColumnName = columnInfo[columnNameIndex].Replace("`", "");
-                    parseSqlData.Command = body;
-                }
-                else if (isReserved == false || body.ToUpper().StartsWith("COLUMN"))
-                {
-                    parseSqlData.ClassificationType = ClassificationType.Columns;
-                    var columnInfo = body.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    var typeIndex = isReserved ? 2 : 1;
-                    if (type == CommandType.Change)
-                    {
-                        parseSqlData.ChangeColumnName = columnInfo[2].Replace("`", "");
-                        typeIndex++;
-                    }
-                    parseSqlData.ColumnName = columnInfo[columnNameIndex].Replace("`", "");
-                    if (Consts.BaseMySqlDataType.ContainsKey(columnInfo[typeIndex].ToLower()))
-                    {
-                        parseSqlData.ColumnType = columnInfo[typeIndex] = Consts.BaseMySqlDataType[columnInfo[typeIndex].ToLower()];
-                    }
-                    typeIndex++;
-                    parseSqlData.ColumnOptions = "";
-                    for (int i = typeIndex; i < columnInfo.Count(); i++)
-                    {
-                        parseSqlData.ColumnOptions += columnInfo[i] + " ";
-                    }
-                }
-                else
-                {
-                    foreach (var keyword in Consts.MySqlReservedKeyword)
-                    {
-                        if (!body.ToUpper().StartsWith(keyword))
-                            continue;
-                        var temp = new string(body.Skip(keyword.Length).ToArray()).Replace("`", " ").Trim();
-                        var index = temp.IndexOfAny(new char[] { ',', ';', ' ' });
-                        if (index == -1)
-                        {
-                            index = temp.Length;
-                        }
-                        parseSqlData.ColumnName = temp.Substring(0, index).Replace("`", "");
-                        break;
-                    }
-                    parseSqlData.Command = body;
-                }
-                findIndex++;
+                return false;
             }
+            parseSqlData.CommandType = type;
+            var isReserved = false;
+            foreach (var key in Consts.MySqlReservedKeyword.Keys)
+            {
+                if (body.ToUpper().StartsWith(key))
+                {
+                    isReserved = true;
+                    break;
+                }
+            }
+            var columnNameIndex = isReserved ? 1 : 0;
+            if (isReserved == false && type == CommandType.Alter)
+            {
+                var columnInfo = body.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                parseSqlData.ColumnName = columnInfo[columnNameIndex].Replace("`", "");
+                parseSqlData.Command = body;
+            }
+            else if (isReserved == false || body.ToUpper().StartsWith("COLUMN"))
+            {
+                parseSqlData.ClassificationType = ClassificationType.Columns;
+                var columnInfo = body.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var typeIndex = isReserved ? 2 : 1;
+                if (type == CommandType.Change)
+                {
+                    parseSqlData.ChangeColumnName = columnInfo[2].Replace("`", "");
+                    typeIndex++;
+                }
+                parseSqlData.ColumnName = columnInfo[columnNameIndex].Replace("`", "");
+                if (Consts.BaseMySqlDataType.ContainsKey(columnInfo[typeIndex].ToLower()))
+                {
+                    parseSqlData.ColumnType = columnInfo[typeIndex] = Consts.BaseMySqlDataType[columnInfo[typeIndex].ToLower()];
+                }
+                typeIndex++;
+                parseSqlData.ColumnOptions = "";
+                for (int i = typeIndex; i < columnInfo.Count(); i++)
+                {
+                    parseSqlData.ColumnOptions += columnInfo[i] + " ";
+                }
+            }
+            else
+            {
+                foreach (var key in Consts.MySqlReservedKeyword.Keys)
+                {
+                    if (!body.ToUpper().StartsWith(key))
+                        continue;
+                    int tempBeforeIndex = 0, tempAfterIndex = 0;
+                    for (int i = 0; i < Consts.MySqlReservedKeyword[key].Count; i++)
+                    {
+                        tempBeforeIndex = body.IndexOf(Consts.MySqlReservedKeyword[key][i]);
+                        if (tempBeforeIndex == -1)
+                            continue;
+                        if (Consts.MySqlReservedKeyword[key][i] != " " && Consts.MySqlReservedKeyword[key][i] != "`")
+                        {
+                            tempAfterIndex = tempBeforeIndex;
+                            tempBeforeIndex = key.Length;
+                            continue;
+                        }
+                        tempAfterIndex = body.IndexOf(Consts.MySqlReservedKeyword[key][i], tempBeforeIndex + 1);
+                        if (tempAfterIndex == -1)
+                            tempAfterIndex = body.Length;
+                    }
+                    parseSqlData.ColumnName = body.Substring(key.Length, tempAfterIndex - tempBeforeIndex).Replace("`", "").Trim();
+                    break;
+                }
 
+                parseSqlData.Command = body;
+            }
             return true;
         }
         public static bool ParseCreateTableCommnad(string sql , out TableInfoModel tableInfoData)
@@ -140,8 +145,11 @@ namespace DatabaseBatch.Infrastructure
             var keyword = "CREATE TABLE";
             var openIndex = sql.IndexOf("(");
             var closeIndex = sql.LastIndexOf(")");
-            tableInfoData = new TableInfoModel();
-
+            tableInfoData = new TableInfoModel()
+            {
+                Columns = new Dictionary<string, ParseSqlData>(),
+            };
+            
             if (openIndex == -1)
             {
                 throw new Exception($"CrateTable Parse Error: {sql}");
@@ -158,37 +166,46 @@ namespace DatabaseBatch.Infrastructure
 
             tableInfoData.TableName = tableName;
 
-            while (findIndex <= body.Count())
+            while (findIndex <= body.Length)
             {
                 beforeIndex = findIndex;
                 findIndex = body.IndexOf(",", findIndex);
                 if (findIndex == -1)
                 {
-                    findIndex = body.Count();
+                    findIndex = body.Length;
                 }
 
                 line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
                 isReservedKeyword = false;
-                for (int i = 0; i < Consts.MySqlReservedKeyword.Count(); i++)
+                
+                foreach(var key in Consts.MySqlReservedKeyword.Keys)
                 {
-                    isReservedKeyword = line.ToUpper().StartsWith(Consts.MySqlReservedKeyword[i]);
-                    if (isReservedKeyword)
+                    isReservedKeyword = line.ToUpper().StartsWith(key);
+                    if(isReservedKeyword)
                     {
-                        if (!Consts.MySqlReservedKeyword[i].Equals("CONSTRAINT") && !Consts.MySqlReservedKeyword[i].Equals("FOREIGN KEY"))//base
+                        if (!key.Equals("CONSTRAINT") && !key.Equals("FOREIGN KEY"))//base
                         {
                             findIndex = body.IndexOf(")", beforeIndex) + 1;
                         }
-                        else//외래키인 경우
-                        {
-                            beforeIndex = body.IndexOf("REFERENCES", beforeIndex) + 1;
-                            findIndex = body.IndexOf(")", beforeIndex) + 1;
-                            foreach (var word in Consts.MySqlFKOptionKeyword)
-                            {
-                                var tempIndex = body.IndexOf(word, findIndex);
-                                if (tempIndex > findIndex)
-                                    findIndex = tempIndex + word.Count();
-                            }
-                        }
+                        //else//외래키인 경우
+                        //{
+                        //    //var maxIndex = 0;
+                        //    //for(int i=0; i< Consts.MySqlReservedKeyword[key].Count; i++)
+                        //    //{
+                        //    //    var index = line.IndexOf(Consts.MySqlReservedKeyword[key][i]);
+                        //    //    if (maxIndex <= index)
+                        //    //    {
+                        //    //        maxIndex = index + Consts.MySqlReservedKeyword[key][i].Length;
+                        //    //    }
+                        //    //}
+                        //    //foreach (var word in Consts.MySqlFKOptionKeyword)
+                        //    //{
+                        //    //    var index = line.IndexOf(word, maxIndex);
+                        //    //    if (maxIndex < index)
+                        //    //        maxIndex = index + word.Length;
+                        //    //}
+                        //    //findIndex += maxIndex;
+                        //}
                         break;
                     }
                 }
@@ -198,7 +215,7 @@ namespace DatabaseBatch.Infrastructure
                     var option = "";
                     for (int ii = 2; ii < datas.Count; ii++)
                     {
-                        if(datas[ii].StartsWith("(") && datas[ii].EndsWith(")"))
+                        if (datas[ii].StartsWith("(") && datas[ii].EndsWith(")"))
                         {
                             datas[1] += datas[ii];
                         }
@@ -206,9 +223,9 @@ namespace DatabaseBatch.Infrastructure
                         {
                             option += $"{datas[ii]} ";
                         }
-                        
+
                     }
-                    if(Consts.BaseMySqlDataType.ContainsKey(datas[1]))
+                    if (Consts.BaseMySqlDataType.ContainsKey(datas[1]))
                     {
                         datas[1] = Consts.BaseMySqlDataType[datas[1]];
                     }

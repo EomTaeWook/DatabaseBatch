@@ -70,29 +70,31 @@ namespace DatabaseBatch.Infrastructure
                             {
                                 MySqlParseHelper.AlterMySqlColumn(column.Value);
                                 InputManager.Instance.WriteTrace($"Table[{column.Value.TableName}] ColumnName[{column.Value.ColumnName}] [{connectDbColumn.ColumnType}] 에서 [{column.Value.ColumnType}] 으로 변경됩니다.");
+                                InputManager.Instance.WriteTrace("");
                             }
                         }
                         else
                         {
-                            if(column.Value.CommandType == CommandType.Add)
+                            if(column.Value.CommandType == CommandType.Add && column.Value.ClassificationType == ClassificationType.Columns)
                             {
                                 InputManager.Instance.WriteTrace($"Table[ {column.Value.TableName} ] ColumnName[ {column.Value.ColumnName} ] (이)가 추가됩니다.");
+                                InputManager.Instance.WriteTrace("");
                                 var output = MySqlParseHelper.AlterMySqlColumn(column.Value);
                             }
-                            else if(column.Value.CommandType == CommandType.Change)
+                            else if(column.Value.CommandType == CommandType.Change && column.Value.ClassificationType == ClassificationType.Columns)
                             {
                                 InputManager.Instance.WriteTrace($"Table[ {column.Value.TableName} ] ColumnName[ {column.Value.ColumnName} ] 에서 ColumnName[ {column.Value.ChangeColumnName} ] [ {column.Value.ColumnType} ] 으로 변경됩니다.");
+                                InputManager.Instance.WriteTrace("");
                                 MySqlParseHelper.AlterMySqlColumnChange(column.Value);
                             }
                             else
                             {
+                                InputManager.Instance.WriteError($"Table[ {column.Value.TableName} ] ColumnName[ {column.Value.ColumnName} ] [ {column.Value.ColumnType} ]");
                                 throw new Exception("Unknown Error");
                             }
                         }
                     }
                 }
-
-                InputManager.Instance.WriteTrace("");
             }
         }
 
@@ -127,21 +129,36 @@ namespace DatabaseBatch.Infrastructure
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
                                     _otherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
-                                else if (_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
+                                else if (_bufferTable.ContainsKey(data.TableName))
                                 {
-                                    if (data.CommandType == CommandType.Change)
+
+                                    if(_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
                                     {
-                                        _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
-                                        _bufferTable[data.TableName].Columns.Add(data.ChangeColumnName, data);
+                                        if (data.CommandType == CommandType.Change)
+                                        {
+                                            _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
+                                            _bufferTable[data.TableName].Columns.Add(data.ChangeColumnName, data);
+                                        }
+                                        if (data.CommandType == CommandType.Drop)
+                                        {
+                                            _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
+                                        }
                                     }
-                                    if(data.CommandType == CommandType.Drop)
+                                    else
                                     {
-                                        _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
+                                        _bufferTable[data.TableName].Columns.Add(data.ColumnName, data);
                                     }
                                 }
-                                else
+                                //CreateTable 에서 Table 정보를 가져왔음.
+                                else if(_dbTable.ContainsKey(data.TableName) && !_bufferTable.ContainsKey(data.TableName))
                                 {
-                                    _bufferTable[data.TableName].Columns.Add(data.ColumnName, data);
+                                    var option = _dbTable[data.TableName].TableOption;
+                                    _bufferTable.Add(data.TableName, new TableInfoModel()
+                                    {
+                                        Columns = _dbTable[data.TableName].Columns.ToDictionary(r => r.Key, r => r.Value),
+                                        TableName = data.TableName,
+                                        TableOption = _dbTable[data.TableName].TableOption
+                                    });
                                 }
                             }
                             else

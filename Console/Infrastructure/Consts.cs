@@ -14,24 +14,38 @@ namespace DatabaseBatch.Infrastructure
             { "long", "mediumtext"},
             { "bigint", "bigint(20)"},
         };
-
-        public static readonly string[] MySqlReservedKeyword = new string[]
+        public static readonly Dictionary<string, List<string>> MySqlReservedKeyword = new Dictionary<string, List<string>>()
         {
-            "PRIMARY KEY",
-            "INDEX ",
-            "INDEX`",
-            "INDEX(",
-            "FOREIGN KEY",
-            "CONSTRAINT",
-           
-            "COLUMN",
-            "FULLTEXT ",
-            "SPATIAL ",
-            "UNIQUE INDEX",
-            "FULLTEXT INDEX",
-            "SPATIAL INDEX ",
+            { "PRIMARY KEY", new List<string>(){ } },
+            { "INDEX", new List<string>(){ "`", " ", } },
 
+            { "FOREIGN KEY", new List<string>(){ "REFERENCES" } },
+            { "CONSTRAINT", new List<string>(){ "FOREIGN KEY", "REFERENCES" } },
+
+            { "COLUMN", new List<string>(){ "" } },
+
+            { "UNIQUE INDEX", new List<string>(){ " ", "`" } },
+            { "FULLTEXT INDEX", new List<string>(){ " ", "`" } },
+            { "SPATIAL INDEX", new List<string>(){ " ", "`" } },
         };
+        //public static readonly string[] MySqlReservedKeyword = new string[]
+        //{
+        //    "PRIMARY KEY",
+        //    "INDEX ",
+        //    "INDEX`",
+        //    "INDEX(",
+
+        //    "FOREIGN KEY",
+        //    "CONSTRAINT",
+
+        //    "COLUMN",
+        //    "FULLTEXT ",
+        //    "SPATIAL ",
+        //    "UNIQUE INDEX",
+        //    "FULLTEXT INDEX",
+        //    "SPATIAL INDEX ",
+
+        //};
         public static readonly string[] MySqlFKOptionKeyword = new string[]
         {
             "ON UPDATE RESTRICT",
