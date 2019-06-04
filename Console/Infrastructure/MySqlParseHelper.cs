@@ -13,33 +13,29 @@ namespace DatabaseBatch.Infrastructure
             parseSqlDatas = new List<ParseSqlData>();
             var replacement = new string[] { "\r\n", "\t" };
             var fileReadIndex = 0;
-            var beforeFileIndex = fileReadIndex;
-            var line = "";
             var findKeyword = new char[] { ';' };
 
             while(fileReadIndex <= sql.Count())
             {
-                beforeFileIndex = fileReadIndex;
+                int beforeFileIndex = fileReadIndex;
                 fileReadIndex = sql.IndexOfAny(findKeyword, fileReadIndex);
                 if (fileReadIndex == -1)
                 {
                     break;
                 }
-                line = sql.Substring(beforeFileIndex, fileReadIndex - beforeFileIndex).Trim().Replace(replacement, " ");
-                if(line.ToUpper().StartsWith("USE"))
+                string line = sql.Substring(beforeFileIndex, fileReadIndex - beforeFileIndex).Trim().Replace(replacement, " ");
+                if (line.ToUpper().StartsWith("USE"))
                 {
                     fileReadIndex = line.Count() + 1;
                     continue;
                 }
 
-                var subFindIndex = 0;
-                var subBeforeFindIndex = subFindIndex;
-                var table = "ALTER TABLE ";
-                subFindIndex = line.IndexOf(' ', table.Length);
+                string table = "ALTER TABLE ";
+                int subFindIndex = line.IndexOf(' ', table.Length);
                 var tableName = line.Substring(table.Length, subFindIndex - table.Length).Replace("`", "");
                 while (subFindIndex <= line.Length)
                 {
-                    subBeforeFindIndex = subFindIndex++;
+                    int subBeforeFindIndex = subFindIndex++;
                     subFindIndex = line.IndexOfAny(new char[] { ',', ';' }, subFindIndex);
                     if (subFindIndex == -1)
                         subFindIndex = line.Length;
@@ -63,6 +59,7 @@ namespace DatabaseBatch.Infrastructure
         {
             parseSqlData = new ParseSqlData();
             var commandIndex = line.IndexOf(" ");
+            //Command를 뜯어내고
             var command = line.Substring(0, commandIndex++);
 
             //이후 무엇이 바뀌었는지 뜯어낸다.
@@ -112,27 +109,26 @@ namespace DatabaseBatch.Infrastructure
             }
             else
             {
+                //Index, 외래키 기본키 이름 뜯기
                 foreach (var key in Consts.MySqlReservedKeyword.Keys)
                 {
                     if (!body.ToUpper().StartsWith(key))
                         continue;
-                    int tempBeforeIndex = 0, tempAfterIndex = 0;
-                    for (int i = 0; i < Consts.MySqlReservedKeyword[key].Count; i++)
+
+                    foreach(var value in Consts.MySqlReservedKeyword[key])
                     {
-                        tempBeforeIndex = body.IndexOf(Consts.MySqlReservedKeyword[key][i]);
-                        if (tempBeforeIndex == -1)
-                            continue;
-                        if (Consts.MySqlReservedKeyword[key][i] != " " && Consts.MySqlReservedKeyword[key][i] != "`")
-                        {
-                            tempAfterIndex = tempBeforeIndex;
-                            tempBeforeIndex = key.Length;
-                            continue;
-                        }
-                        tempAfterIndex = body.IndexOf(Consts.MySqlReservedKeyword[key][i], tempBeforeIndex + 1);
-                        if (tempAfterIndex == -1)
-                            tempAfterIndex = body.Length;
+                        var idx = body.ToUpper().IndexOf(value);
+                        if (idx == -1)
+                            idx = body.Length;
+                        var nameZone = body.Substring(key.Length, idx - key.Length);
+                        nameZone = nameZone.Replace("`", " ").Trim();
+                        var splits = nameZone.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (splits.Length == 0)
+                            parseSqlData.ColumnName = "";
+                        else
+                            parseSqlData.ColumnName = splits[0];
+                        break;
                     }
-                    parseSqlData.ColumnName = body.Substring(key.Length, tempAfterIndex - tempBeforeIndex).Replace("`", "").Trim();
                     break;
                 }
 
@@ -161,14 +157,11 @@ namespace DatabaseBatch.Infrastructure
             var body = sql.Substring(openIndex + 1, closeIndex - openIndex - 1).Trim();
 
             var findIndex = 0;
-            var beforeIndex = 0;
-            var isReservedKeyword = false;
-
             tableInfoData.TableName = tableName;
 
             while (findIndex <= body.Length)
             {
-                beforeIndex = findIndex;
+                int beforeIndex = findIndex;
                 findIndex = body.IndexOf(",", findIndex);
                 if (findIndex == -1)
                 {
@@ -176,46 +169,17 @@ namespace DatabaseBatch.Infrastructure
                 }
 
                 line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
-                isReservedKeyword = false;
-                
-                foreach(var key in Consts.MySqlReservedKeyword.Keys)
+                bool isReservedKeyword = false;
+                var queue = new Queue<string>();
+                foreach (var key in Consts.MySqlReservedKeyword.Keys)
                 {
                     isReservedKeyword = line.ToUpper().StartsWith(key);
-                    if(isReservedKeyword)
-                    {
-                        if (!key.Equals("CONSTRAINT") && !key.Equals("FOREIGN KEY"))//base
-                        {
-                            findIndex = body.IndexOf(")", beforeIndex) + 1;
-                        }
-                        else//외래키인 경우
-                        {
-                            var maxIndex = 0;
-                            for (int i = 0; i < Consts.MySqlReservedKeyword[key].Count; i++)
-                            {
-                                var index = body.IndexOf(Consts.MySqlReservedKeyword[key][i], beforeIndex);
-                                if (maxIndex <= index)
-                                {
-                                    maxIndex = index + Consts.MySqlReservedKeyword[key][i].Length;
-                                }
-                            }
-                            findIndex = maxIndex;
-                            findIndex = body.IndexOf(")", findIndex) + 1;
-                            //line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
-                            maxIndex = body.IndexOf(",", findIndex);
-                            if (maxIndex == -1)
-                            {
-                                findIndex = body.Length;
-                            }
-                            else
-                            {
-                                findIndex = maxIndex;
-                            }
-                            //line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
-                        }
-                        break;
-                    }
+                    if (isReservedKeyword == false)
+                        continue;
+                    queue.Enqueue(key);
+                    break;
                 }
-                if (isReservedKeyword == false)
+                if(isReservedKeyword == false)
                 {
                     var datas = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
                     var option = "";
@@ -244,12 +208,39 @@ namespace DatabaseBatch.Infrastructure
                     };
                     tableInfoData.Columns.Add(column.ColumnName, column);
                 }
+                else
+                {
+                    int maxIndex = 0;
+                    int minIndex = beforeIndex;
+                    while (queue.Count > 0)
+                    {
+                        var item = queue.Dequeue();
+                        
+                        var index = body.IndexOf(item, minIndex);
+                        if (index == -1)
+                        {
+                            maxIndex = body.Length;
+                        }
+                        if (maxIndex <= index)
+                        {
+                            maxIndex = index + item.Length;
+                        }
+                        findIndex = maxIndex;
+                        //InputManager.Instance.Write(body.Substring(beforeIndex, findIndex - beforeIndex).Trim());
 
+                        minIndex = findIndex;
+                        if (!Consts.MySqlReservedKeyword.ContainsKey(item))
+                            continue;
+                        foreach (var key in Consts.MySqlReservedKeyword[item])
+                        {
+                            queue.Enqueue(key);
+                        }
+                    }
+                }
                 findIndex++;
             }
             return true;
         }
-
         public static string AlterMySqlColumnChange(ParseSqlData model)
         {
             return $"ALTER TABLE `{model.TableName}` CHANGE COLUMN `{model.ColumnName}` `{model.ChangeColumnName}` {model.ColumnType} {model.ColumnOptions};";

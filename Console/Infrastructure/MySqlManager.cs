@@ -1,11 +1,11 @@
-﻿using DatabaseBatch.Models;
+﻿using DatabaseBatch.Extensions;
+using DatabaseBatch.Models;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using DatabaseBatch.Extensions;
 
 namespace DatabaseBatch.Infrastructure
 {
@@ -163,6 +163,13 @@ namespace DatabaseBatch.Infrastructure
                             }
                             else
                             {
+                                if(string.IsNullOrEmpty(data.ColumnName))
+                                {
+                                    InputManager.Instance.WriteWarning($"Table[ {data.TableName} ] [ {data.Command} ] 명시적 이름이 없습니다. 이미 변경이 이뤄졌을 수도 있습니다.");
+                                    Console.ReadKey();
+                                    continue;
+                                }
+
                                 var index = _dbIndexTable[data.TableName].Find(r=>r.IndexName == data.ColumnName);
                                 if(index == null && data.CommandType == CommandType.Add)
                                 {

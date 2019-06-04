@@ -19,6 +19,11 @@ namespace DatabaseBatch.Infrastructure
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine(message);
         }
+        public void WriteWarning(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.WriteLine(message);
+        }
         public void WriteError(string message)
         {
             Console.ForegroundColor = ConsoleColor.Red;
