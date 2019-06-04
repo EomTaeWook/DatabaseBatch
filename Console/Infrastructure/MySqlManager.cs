@@ -149,8 +149,8 @@ namespace DatabaseBatch.Infrastructure
                                         _bufferTable[data.TableName].Columns.Add(data.ColumnName, data);
                                     }
                                 }
-                                //CreateTable 에서 Table 정보를 가져왔음.
-                                else if(_dbTable.ContainsKey(data.TableName) && !_bufferTable.ContainsKey(data.TableName))
+                                //Create Table에 정보가 없는 경우 현재 접속한 DB 에서 Table 정보를 가져왔음. 
+                                else if (_dbTable.ContainsKey(data.TableName) && !_bufferTable.ContainsKey(data.TableName))
                                 {
                                     var option = _dbTable[data.TableName].TableOption;
                                     _bufferTable.Add(data.TableName, new TableInfoModel()
