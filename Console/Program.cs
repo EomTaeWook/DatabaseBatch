@@ -19,7 +19,7 @@ namespace DatabaseBatch
                 manger.Init(config);
                 manger.MakeScript();
 
-                InputManager.Instance.Write("작업이 완료되었습니다. 배포하시겠습니까?(Y/N)");
+                InputManager.Instance.Write("작업이 완료되었습니다. 배포하시겠습니까?(Y)");
                 var input = Console.ReadKey();
                 if (input.KeyChar == 'Y' || input.KeyChar == 'y')
                 {

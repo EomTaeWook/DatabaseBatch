@@ -8,16 +8,18 @@ namespace DatabaseBatch.Infrastructure
 {
     public class MySqlParseHelper
     {
-        public static bool ParseAlterCommnad(string sql, out List<ParseSqlData> parseSqlDatas)
+        public static bool ParseAlterCommnad(string sql, out List<ParseSqlData> parseSqlDatas, out string database)
         {
             parseSqlDatas = new List<ParseSqlData>();
             var replacement = new string[] { "\r\n", "\t", "\n" };
-            var fileReadIndex = 0;
+            int fileReadIndex = 0;
+            int beforeFileIndex = 0;
             var findKeyword = new char[] { ';' };
-
-            while(fileReadIndex <= sql.Count())
+            database = "";
+            
+            while (fileReadIndex <= sql.Count())
             {
-                int beforeFileIndex = fileReadIndex;
+                beforeFileIndex = fileReadIndex;
                 fileReadIndex = sql.IndexOfAny(findKeyword, fileReadIndex);
                 if (fileReadIndex == -1)
                 {
@@ -26,6 +28,7 @@ namespace DatabaseBatch.Infrastructure
                 string line = sql.Substring(beforeFileIndex, fileReadIndex - beforeFileIndex).Trim().Replace(replacement, " ");
                 if (line.ToUpper().StartsWith("USE"))
                 {
+                    database = line.Split(' ').Skip(1).Aggregate((l, r) => $"{l} {r}").Replace("`", "");
                     fileReadIndex = line.Count() + 1;
                     continue;
                 }
@@ -53,7 +56,6 @@ namespace DatabaseBatch.Infrastructure
                 fileReadIndex++;
             }
             return true;
-
         }
         private static bool ParseSubAlterTableCommand(string line, out ParseSqlData parseSqlData)
         {
@@ -138,106 +140,129 @@ namespace DatabaseBatch.Infrastructure
         }
         public static bool ParseCreateTableCommnad(string sql , out TableInfoModel tableInfoData)
         {
-            var keyword = "CREATE TABLE";
-            var openIndex = sql.IndexOf("(");
-            var closeIndex = sql.LastIndexOf(")");
+            var fileReadIndex = 0;
+            var findKeyword = new char[] { ';' };
+            int beforeFileIndex = 0;
+
             tableInfoData = new TableInfoModel()
             {
                 Columns = new Dictionary<string, ParseSqlData>(),
             };
-            
-            if (openIndex == -1)
+
+            while (fileReadIndex <= sql.Length)
             {
-                throw new Exception($"CreateTable Parse Error: {sql}");
-            }
-            var line = sql.Substring(0, openIndex);
-            var tableNameIndex = line.ToUpper().IndexOf(keyword) + keyword.Length;
-
-            var tableName = sql.Substring(tableNameIndex, openIndex - tableNameIndex).Replace("`", "").Trim();
-            var body = sql.Substring(openIndex + 1, closeIndex - openIndex - 1).Trim();
-
-            var findIndex = 0;
-            tableInfoData.TableName = tableName;
-
-            while (findIndex <= body.Length)
-            {
-                int beforeIndex = findIndex;
-                findIndex = body.IndexOf(",", findIndex);
-                if (findIndex == -1)
+                beforeFileIndex = fileReadIndex;
+                fileReadIndex = sql.IndexOfAny(findKeyword, fileReadIndex);
+                if (fileReadIndex == -1)
                 {
-                    findIndex = body.Length;
+                    fileReadIndex = sql.Length;
                 }
-
-                line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
-                bool isReservedKeyword = false;
-                var queue = new Queue<string>();
-                foreach (var key in Consts.MySqlReservedKeyword.Keys)
+                string line = sql.Substring(beforeFileIndex, fileReadIndex - beforeFileIndex).Trim();
+                if (line.ToUpper().StartsWith("USE"))
                 {
-                    isReservedKeyword = line.ToUpper().StartsWith(key);
-                    if (isReservedKeyword == false)
-                        continue;
-                    queue.Enqueue(key);
-                    break;
+                    tableInfoData.Database = line.Split(' ').Skip(1).Aggregate((l, r) => $"{l} {r}").Replace("`", "");
+                    fileReadIndex = line.Count() + 1;
+                    continue;
                 }
-                if(isReservedKeyword == false)//기본 컬럼
+                else if(line.ToUpper().StartsWith("DROP"))
                 {
-                    var datas = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-                    var option = "";
-                    for (int ii = 2; ii < datas.Count; ii++)
+                    
+                }
+                else if(line.ToUpper().StartsWith("CREATE TABLE"))
+                {
+                    var openIndex = line.IndexOf("(", 0);
+                    var closeIndex = line.LastIndexOf(')');
+                    if (openIndex == -1)
                     {
-                        if (datas[ii].StartsWith("(") && datas[ii].EndsWith(")"))
+                        throw new Exception($"CreateTable Parse Error: {sql}");
+                    }
+                    var tableNameIndex = line.ToUpper().IndexOf("CREATE TABLE") + "CREATE TABLE".Length;
+                    var tableName = line.Substring(tableNameIndex, openIndex - tableNameIndex).Replace("`", "").Trim();
+                    var body = line.Substring(openIndex + 1, closeIndex - openIndex - 1).Trim();
+                    tableInfoData.TableName = tableName;
+
+                    var findIndex = 0;
+                    while(findIndex <=body.Length)
+                    {
+                        int beforeIndex = findIndex;
+                        findIndex = body.IndexOf(",", findIndex);
+                        if (findIndex == -1)
                         {
-                            datas[1] += datas[ii];
+                            findIndex = body.Length;
+                        }
+                        line = body.Substring(beforeIndex, findIndex - beforeIndex).Trim();
+                        bool isReservedKeyword = false;
+                        var queue = new Queue<string>();
+                        foreach (var key in Consts.MySqlReservedKeyword.Keys)
+                        {
+                            isReservedKeyword = line.ToUpper().StartsWith(key);
+                            if (isReservedKeyword == false)
+                                continue;
+                            queue.Enqueue(key);
+                            break;
+                        }
+                        if (isReservedKeyword == false)//기본 컬럼
+                        {
+                            var datas = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                            var option = "";
+                            for (int ii = 2; ii < datas.Count; ii++)
+                            {
+                                if (datas[ii].StartsWith("(") && datas[ii].EndsWith(")"))
+                                {
+                                    datas[1] += datas[ii];
+                                }
+                                else
+                                {
+                                    option += $"{datas[ii]} ";
+                                }
+
+                            }
+                            if (Consts.BaseMySqlDataType.ContainsKey(datas[1]))
+                            {
+                                datas[1] = Consts.BaseMySqlDataType[datas[1]];
+                            }
+                            var column = new ParseSqlData()
+                            {
+                                ColumnName = datas[0].Replace("`", ""),
+                                ColumnType = datas[1],
+                                ColumnOptions = option,
+                                TableName = tableName
+                            };
+                            tableInfoData.Columns.Add(column.ColumnName, column);
                         }
                         else
                         {
-                            option += $"{datas[ii]} ";
-                        }
+                            int maxIndex = 0;
+                            int minIndex = beforeIndex;
+                            while (queue.Count > 0)
+                            {
+                                var item = queue.Dequeue();
 
-                    }
-                    if (Consts.BaseMySqlDataType.ContainsKey(datas[1]))
-                    {
-                        datas[1] = Consts.BaseMySqlDataType[datas[1]];
-                    }
-                    var column = new ParseSqlData()
-                    {
-                        ColumnName = datas[0].Replace("`", ""),
-                        ColumnType = datas[1],
-                        ColumnOptions = option,
-                        TableName = tableName
-                    };
-                    tableInfoData.Columns.Add(column.ColumnName, column);
-                }
-                else
-                {
-                    int maxIndex = 0;
-                    int minIndex = beforeIndex;
-                    while (queue.Count > 0)
-                    {
-                        var item = queue.Dequeue();
-                        
-                        var index = body.IndexOf(item, minIndex);
-                        if (index == -1)
-                        {
-                            maxIndex = body.Length;
-                        }
-                        if (maxIndex <= index)
-                        {
-                            maxIndex = index + item.Length;
-                        }
-                        findIndex = maxIndex;
-                        //InputManager.Instance.Write(body.Substring(beforeIndex, findIndex - beforeIndex).Trim());
+                                var index = body.IndexOf(item, minIndex);
+                                if (index == -1)
+                                {
+                                    maxIndex = body.Length;
+                                }
+                                if (maxIndex <= index)
+                                {
+                                    maxIndex = index + item.Length;
+                                }
+                                findIndex = maxIndex;
+                                //InputManager.Instance.Write(body.Substring(beforeIndex, findIndex - beforeIndex).Trim());
 
-                        minIndex = findIndex;
-                        if (!Consts.MySqlReservedKeyword.ContainsKey(item))
-                            continue;
-                        foreach (var key in Consts.MySqlReservedKeyword[item])
-                        {
-                            queue.Enqueue(key);
+                                minIndex = findIndex;
+                                if (!Consts.MySqlReservedKeyword.ContainsKey(item))
+                                    continue;
+                                foreach (var key in Consts.MySqlReservedKeyword[item])
+                                {
+                                    queue.Enqueue(key);
+                                }
+                            }
                         }
+                        findIndex++;
                     }
                 }
-                findIndex++;
+                fileReadIndex++;
             }
             return true;
         }

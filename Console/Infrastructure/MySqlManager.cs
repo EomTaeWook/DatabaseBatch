@@ -18,11 +18,16 @@ namespace DatabaseBatch.Infrastructure
 
         private Dictionary<string, TableInfoModel> _dbTable;
         private Dictionary<string, List<IndexModel>> _dbIndexTable;
+
+        private string connectedDatabaseName;
         public override void Init(Config config)
         {
             _config = config;
+            var connection = new MySqlConnection(config.SqlConnect);
+            connectedDatabaseName = connection.Database.ToUpper() ;
 
-            _dbTable = GetMySqlTableInfo(new MySqlConnection(config.SqlConnect));
+            _dbTable = GetMySqlTableInfo(connection);
+
             _dbIndexTable = GetMySqlIndexInfo(new MySqlConnection(config.SqlConnect));
         }
         public override void Publish()
@@ -121,8 +126,12 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    if(MySqlParseHelper.ParseAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas))
+                    if(MySqlParseHelper.ParseAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas, out string database))
                     {
+                        if(!database.ToUpper().Equals(connectedDatabaseName) || string.IsNullOrEmpty(database))
+                        {
+                            continue;
+                        }
                         foreach(var data in parseSqlDatas)
                         {
                             if(data.ClassificationType == ClassificationType.Columns)
@@ -249,6 +258,16 @@ namespace DatabaseBatch.Infrastructure
 
                     if (MySqlParseHelper.ParseCreateTableCommnad(sql, out TableInfoModel parseTableData))
                     {
+                        if(string.IsNullOrEmpty(parseTableData.Database))
+                        {
+                            parseTableData.Database = connectedDatabaseName;
+                        }
+                        else if(!parseTableData.Database.ToUpper().Equals(connectedDatabaseName))
+                        {
+                            InputManager.Instance.WriteWarning($"File { files[i].Name } Database [ {connectedDatabaseName } ] 과 [ { parseTableData.Database } ](이)가 다릅니다.");
+                            InputManager.Instance.WriteWarning("");
+                            continue;
+                        }
                         if (!_dbTable.ContainsKey(parseTableData.TableName.ToLower()))
                         {
                             _tableBuffer.AppendLine(sql);
