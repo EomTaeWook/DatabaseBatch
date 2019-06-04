@@ -102,6 +102,9 @@ namespace DatabaseBatch.Infrastructure
         {
             InputManager.Instance.WriteInfo($">>>>Load AlterTable Files : {_config.AlterTablePath}");
 
+            if (string.IsNullOrEmpty(_config.AlterTablePath))
+                return;
+
             _tableBuffer.AppendLine($"DELIMITER $$");
             _tableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_alter_table`;");
             _tableBuffer.AppendLine($"CREATE PROCEDURE `make_alter_table`() BEGIN");
@@ -127,6 +130,7 @@ namespace DatabaseBatch.Infrastructure
                                 if(data.CommandType == CommandType.Alter)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
+                                    InputManager.Instance.WriteTrace("");
                                     _otherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
                                 else if (_bufferTable.ContainsKey(data.TableName))
@@ -167,6 +171,7 @@ namespace DatabaseBatch.Infrastructure
                                 {
                                     InputManager.Instance.WriteWarning($"Table[ {data.TableName} ] [ {data.Command} ] 명시적 이름이 없습니다. 이미 변경이 이뤄졌을 수도 있습니다.");
                                     Console.ReadKey();
+                                    InputManager.Instance.WriteTrace("");
                                     continue;
                                 }
 
@@ -174,6 +179,7 @@ namespace DatabaseBatch.Infrastructure
                                 if(index == null && data.CommandType == CommandType.Add)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] Name[ {data.ColumnName} ] [ {data.Command} ] (이)가 추가됩니다.");
+                                    InputManager.Instance.WriteTrace("");
                                     _dbIndexTable[data.TableName].Add(new IndexModel()
                                     {
                                         IndexName = data.ColumnName,
@@ -184,6 +190,7 @@ namespace DatabaseBatch.Infrastructure
                                 else if (index != null && data.CommandType == CommandType.Drop)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] Name[ {data.Command} ] (이)가 제거됩니다.");
+                                    InputManager.Instance.WriteTrace("");
                                     _dbIndexTable[data.TableName].Add(new IndexModel()
                                     {
                                         IndexName = data.ColumnName,
@@ -194,6 +201,7 @@ namespace DatabaseBatch.Infrastructure
                                 else if(data.CommandType == CommandType.Alter)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
+                                    InputManager.Instance.WriteTrace("");
                                     _tableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
                             }
@@ -215,11 +223,15 @@ namespace DatabaseBatch.Infrastructure
         private void LoadTable()
         {
             //var currentDBTables = GetMySqlTableInfo(new MySqlConnection(_config.SqlConnect));
+            InputManager.Instance.WriteInfo($">>>>Load Table Files : {_config.TablePath}");
+
+            if (string.IsNullOrEmpty(_config.TablePath))
+                return;
 
             _tableBuffer.AppendLine($"DELIMITER $$");
             _tableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_create_table`;");
             _tableBuffer.AppendLine($"CREATE PROCEDURE `make_create_table`() BEGIN");
-            InputManager.Instance.WriteInfo($">>>>Load Table Files : {_config.TablePath}");
+
 
             var directoryInfo = new DirectoryInfo(_config.TablePath);
             var files = GetSqlFiles(directoryInfo);
@@ -309,6 +321,8 @@ namespace DatabaseBatch.Infrastructure
         {
             _otherBuffer.AppendLine();
             InputManager.Instance.WriteInfo($">>>Load Stored Procedure Files : {_config.StoredProcedurePath}");
+            if (string.IsNullOrEmpty(_config.StoredProcedurePath))
+                return;
             var directoryInfo = new DirectoryInfo(_config.StoredProcedurePath);
             var files = GetSqlFiles(directoryInfo);
             for (int i = 0; i < files.Count; i++)

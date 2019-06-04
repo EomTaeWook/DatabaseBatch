@@ -148,7 +148,7 @@ namespace DatabaseBatch.Infrastructure
             
             if (openIndex == -1)
             {
-                throw new Exception($"CrateTable Parse Error: {sql}");
+                throw new Exception($"CreateTable Parse Error: {sql}");
             }
             var line = sql.Substring(0, openIndex);
             var tableNameIndex = line.ToUpper().IndexOf(keyword) + keyword.Length;
