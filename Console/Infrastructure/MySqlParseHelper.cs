@@ -11,7 +11,7 @@ namespace DatabaseBatch.Infrastructure
         public static bool ParseAlterCommnad(string sql, out List<ParseSqlData> parseSqlDatas)
         {
             parseSqlDatas = new List<ParseSqlData>();
-            var replacement = new string[] { "\r\n", "\t" };
+            var replacement = new string[] { "\r\n", "\t", "\n" };
             var fileReadIndex = 0;
             var findKeyword = new char[] { ';' };
 
@@ -179,7 +179,7 @@ namespace DatabaseBatch.Infrastructure
                     queue.Enqueue(key);
                     break;
                 }
-                if(isReservedKeyword == false)
+                if(isReservedKeyword == false)//기본 컬럼
                 {
                     var datas = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
                     var option = "";
