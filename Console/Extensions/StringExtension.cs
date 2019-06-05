@@ -13,5 +13,25 @@ namespace DatabaseBatch.Extensions
             }
             return sb.ToString();
         }
+        public static int IndexOfAny(this string source, string[] anyOf, int startIndex, out int nextIndex)
+        {
+            int index = -1;
+            nextIndex = 0;
+            foreach(var value in anyOf)
+            {
+                var findIndex = source.IndexOf(value, startIndex);
+                if (index == -1)
+                {
+                    index = findIndex;
+                    nextIndex = value.Length;
+                }
+                else if (findIndex < index && findIndex != -1)
+                {
+                    index = findIndex;
+                    nextIndex = value.Length;
+                }
+            }
+            return index;
+        }
     }
 }

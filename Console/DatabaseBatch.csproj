@@ -66,6 +66,7 @@
     <Compile Include="Infrastructure\InputManager.cs" />
     <Compile Include="Infrastructure\Interface\ISqlManager.cs" />
     <Compile Include="Infrastructure\MySqlManager.cs" />
+    <Compile Include="Infrastructure\MySqlReader.cs" />
     <Compile Include="Infrastructure\Singleton.cs" />
     <Compile Include="Infrastructure\MySqlParseHelper.cs" />
     <Compile Include="Models\Config.cs" />

@@ -8,52 +8,34 @@ namespace DatabaseBatch.Infrastructure
 {
     public class MySqlParseHelper
     {
-        public static bool ParseAlterCommnad(string sql, out List<ParseSqlData> parseSqlDatas, out string database)
+        public static bool ParseAlterCommnad(string sql, out List<ParseSqlData> parseSqlDatas)
         {
             parseSqlDatas = new List<ParseSqlData>();
-            var replacement = new string[] { "\r\n", "\t", "\n" };
-            int fileReadIndex = 0;
-            int beforeFileIndex = 0;
-            var findKeyword = new char[] { ';' };
-            database = "";
-            
-            while (fileReadIndex <= sql.Count())
+            MySqlReader reader = new MySqlReader(sql);
+            string table = "ALTER TABLE";
+            while (reader.NextLine(out string line))
             {
-                beforeFileIndex = fileReadIndex;
-                fileReadIndex = sql.IndexOfAny(findKeyword, fileReadIndex);
-                if (fileReadIndex == -1)
+                if(line.ToUpper().StartsWith(table))
                 {
-                    break;
-                }
-                string line = sql.Substring(beforeFileIndex, fileReadIndex - beforeFileIndex).Trim().Replace(replacement, " ");
-                if (line.ToUpper().StartsWith("USE"))
-                {
-                    database = line.Split(' ').Skip(1).Aggregate((l, r) => $"{l} {r}").Replace("`", "");
-                    fileReadIndex = line.Count() + 1;
-                    continue;
-                }
-
-                string table = "ALTER TABLE ";
-                int subFindIndex = line.IndexOf(' ', table.Length);
-                var tableName = line.Substring(table.Length, subFindIndex - table.Length).Replace("`", "");
-                while (subFindIndex <= line.Length)
-                {
-                    int subBeforeFindIndex = subFindIndex++;
-                    subFindIndex = line.IndexOfAny(new char[] { ',', ';' }, subFindIndex);
-                    if (subFindIndex == -1)
-                        subFindIndex = line.Length;
-
-                    var newCommand = line.Substring(subBeforeFindIndex, subFindIndex - subBeforeFindIndex).Trim();
-
-                    if (!ParseSubAlterTableCommand(newCommand, out ParseSqlData parseSqlData))
+                    int findIndex = line.IndexOf(' ', table.Length + 1);
+                    var tableName = line.Substring(table.Length + 1, findIndex - table.Length - 1).Replace("`", "");
+                    findIndex++;
+                    while (findIndex <= line.Length)
                     {
-                        throw new Exception($"sql : {sql}");
+                        int beforeFindIndex = findIndex++;
+                        findIndex = line.IndexOfAny(new char[] { ',', ';' }, findIndex);
+                        if (findIndex == -1)
+                            findIndex = line.Length;
+                        var command = line.Substring(beforeFindIndex, findIndex - beforeFindIndex).Trim();
+                        if (!ParseSubAlterTableCommand(command, out ParseSqlData parseSqlData))
+                        {
+                            throw new Exception($"sql : {sql}");
+                        }
+                        parseSqlData.TableName = tableName;
+                        parseSqlDatas.Add(parseSqlData);
+                        findIndex++;
                     }
-                    parseSqlData.TableName = tableName;
-                    parseSqlDatas.Add(parseSqlData);
-                    subFindIndex++;
                 }
-                fileReadIndex++;
             }
             return true;
         }
@@ -140,35 +122,14 @@ namespace DatabaseBatch.Infrastructure
         }
         public static bool ParseCreateTableCommnad(string sql , out TableInfoModel tableInfoData)
         {
-            var fileReadIndex = 0;
-            var findKeyword = new char[] { ';' };
-            int beforeFileIndex = 0;
-
             tableInfoData = new TableInfoModel()
             {
                 Columns = new Dictionary<string, ParseSqlData>(),
             };
-
-            while (fileReadIndex <= sql.Length)
+            MySqlReader reader = new MySqlReader(sql);
+            while (reader.NextLine(out string line))
             {
-                beforeFileIndex = fileReadIndex;
-                fileReadIndex = sql.IndexOfAny(findKeyword, fileReadIndex);
-                if (fileReadIndex == -1)
-                {
-                    fileReadIndex = sql.Length;
-                }
-                string line = sql.Substring(beforeFileIndex, fileReadIndex - beforeFileIndex).Trim();
-                if (line.ToUpper().StartsWith("USE"))
-                {
-                    tableInfoData.Database = line.Split(' ').Skip(1).Aggregate((l, r) => $"{l} {r}").Replace("`", "");
-                    fileReadIndex = line.Count() + 1;
-                    continue;
-                }
-                else if(line.ToUpper().StartsWith("DROP"))
-                {
-                    
-                }
-                else if(line.ToUpper().StartsWith("CREATE TABLE"))
+                if (line.ToUpper().StartsWith("CREATE TABLE"))
                 {
                     var openIndex = line.IndexOf("(", 0);
                     var closeIndex = line.LastIndexOf(')');
@@ -182,7 +143,7 @@ namespace DatabaseBatch.Infrastructure
                     tableInfoData.TableName = tableName;
 
                     var findIndex = 0;
-                    while(findIndex <=body.Length)
+                    while (findIndex <= body.Length)
                     {
                         int beforeIndex = findIndex;
                         findIndex = body.IndexOf(",", findIndex);
@@ -262,10 +223,24 @@ namespace DatabaseBatch.Infrastructure
                         findIndex++;
                     }
                 }
-                fileReadIndex++;
             }
             return true;
         }
+        public static bool CheckConnectDatabase(string sql, out string database)
+        {
+            database = null;
+            MySqlReader reader = new MySqlReader(sql);
+            while(reader.NextLine(out string line))
+            {
+                if(line.ToUpper().StartsWith("USE"))
+                {
+                    database = line.Split(' ').Skip(1).Aggregate((l, r) => $"{l} {r}").Replace("`", "");
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public static string AlterMySqlColumnChange(ParseSqlData model)
         {
             return $"ALTER TABLE `{model.TableName}` CHANGE COLUMN `{model.ColumnName}` `{model.ChangeColumnName}` {model.ColumnType} {model.ColumnOptions};";
