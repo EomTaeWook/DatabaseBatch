@@ -24,7 +24,7 @@ namespace DatabaseBatch.Infrastructure
         {
             _config = config;
             var connection = new MySqlConnection(config.SqlConnect);
-            connectedDatabaseName = connection.Database.ToUpper() ;
+            connectedDatabaseName = connection.Database.ToUpper();
 
             _dbTable = GetMySqlTableInfo(connection);
 
@@ -60,18 +60,18 @@ namespace DatabaseBatch.Infrastructure
         private void MakeTableScript()
         {
             //테이블 변경점을 찾아보자
-            foreach(var table in _bufferTable)
+            foreach (var table in _bufferTable)
             {
-                if(_dbTable.ContainsKey(table.Key))
+                if (_dbTable.ContainsKey(table.Key))
                 {
                     var connectDbTable = _dbTable[table.Key];
                     foreach (var column in table.Value.Columns)
                     {
-                        if(connectDbTable.Columns.ContainsKey(column.Key.ToLower()))
+                        if (connectDbTable.Columns.ContainsKey(column.Key.ToLower()))
                         {
                             //변경
                             var connectDbColumn = connectDbTable.Columns[column.Key.ToLower()];
-                            if(!connectDbColumn.TypeCompare(column.Value))
+                            if (!connectDbColumn.TypeCompare(column.Value))
                             {
                                 MySqlParseHelper.AlterMySqlColumn(column.Value);
                                 InputManager.Instance.WriteTrace($"Table[{column.Value.TableName}] ColumnName[{column.Value.ColumnName}] [{connectDbColumn.ColumnType}] 에서 [{column.Value.ColumnType}] 으로 변경됩니다.");
@@ -80,13 +80,13 @@ namespace DatabaseBatch.Infrastructure
                         }
                         else
                         {
-                            if(column.Value.CommandType == CommandType.Add && column.Value.ClassificationType == ClassificationType.Columns)
+                            if (column.Value.CommandType == CommandType.Add && column.Value.ClassificationType == ClassificationType.Columns)
                             {
                                 InputManager.Instance.WriteTrace($"Table[ {column.Value.TableName} ] ColumnName[ {column.Value.ColumnName} ] (이)가 추가됩니다.");
                                 InputManager.Instance.WriteTrace("");
                                 var output = MySqlParseHelper.AlterMySqlColumn(column.Value);
                             }
-                            else if(column.Value.CommandType == CommandType.Change && column.Value.ClassificationType == ClassificationType.Columns)
+                            else if (column.Value.CommandType == CommandType.Change && column.Value.ClassificationType == ClassificationType.Columns)
                             {
                                 InputManager.Instance.WriteTrace($"Table[ {column.Value.TableName} ] ColumnName[ {column.Value.ColumnName} ] 에서 ColumnName[ {column.Value.ChangeColumnName} ] [ {column.Value.ColumnType} ] 으로 변경됩니다.");
                                 InputManager.Instance.WriteTrace("");
@@ -126,20 +126,20 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    if(MySqlParseHelper.CheckConnectDatabase(sql, out string database))
+                    if (MySqlParseHelper.CheckConnectDatabase(sql, out string database))
                     {
                         if (!database.ToUpper().Equals(connectedDatabaseName))
                         {
                             continue;
                         }
                     }
-                    if(MySqlParseHelper.ParseAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas))
+                    if (MySqlParseHelper.ParseAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas))
                     {
-                        foreach(var data in parseSqlDatas)
+                        foreach (var data in parseSqlDatas)
                         {
-                            if(data.ClassificationType == ClassificationType.Columns)
+                            if (data.ClassificationType == ClassificationType.Columns)
                             {
-                                if(data.CommandType == CommandType.Alter)
+                                if (data.CommandType == CommandType.Alter)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
                                     InputManager.Instance.WriteTrace("");
@@ -148,7 +148,7 @@ namespace DatabaseBatch.Infrastructure
                                 else if (_bufferTable.ContainsKey(data.TableName))
                                 {
 
-                                    if(_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
+                                    if (_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
                                     {
                                         if (data.CommandType == CommandType.Change)
                                         {
@@ -179,7 +179,7 @@ namespace DatabaseBatch.Infrastructure
                             }
                             else
                             {
-                                if(string.IsNullOrEmpty(data.ColumnName))
+                                if (string.IsNullOrEmpty(data.ColumnName))
                                 {
                                     InputManager.Instance.WriteWarning($"Table[ {data.TableName} ] [ {data.Command} ] 명시적 이름이 없습니다. 이미 변경이 이뤄졌을 수도 있습니다.");
                                     Console.ReadKey();
@@ -187,8 +187,8 @@ namespace DatabaseBatch.Infrastructure
                                     continue;
                                 }
 
-                                var index = _dbIndexTable[data.TableName].Find(r=>r.IndexName == data.ColumnName);
-                                if(index == null && data.CommandType == CommandType.Add)
+                                var index = _dbIndexTable[data.TableName].Find(r => r.IndexName == data.ColumnName);
+                                if (index == null && data.CommandType == CommandType.Add)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] Name[ {data.ColumnName} ] [ {data.Command} ] (이)가 추가됩니다.");
                                     InputManager.Instance.WriteTrace("");
@@ -210,7 +210,7 @@ namespace DatabaseBatch.Infrastructure
                                     });
                                     _tableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
-                                else if(data.CommandType == CommandType.Alter)
+                                else if (data.CommandType == CommandType.Alter)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
                                     InputManager.Instance.WriteTrace("");
@@ -357,16 +357,15 @@ namespace DatabaseBatch.Infrastructure
                     if (string.IsNullOrEmpty(sql))
                         throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                    if(MySqlParseHelper.CheckConnectDatabase(sql, out string database))
+                    if (MySqlParseHelper.CheckConnectDatabase(sql, out string database))
                     {
                         if (!database.ToUpper().Equals(connectedDatabaseName))
                         {
                             InputManager.Instance.WriteWarning($"File { files[i].Name } Database [ {connectedDatabaseName } ] 과 [ { database } ](이)가 다릅니다.");
                             InputManager.Instance.WriteWarning("");
+                            continue;
                         }
-                        continue;
                     }
-
                     _otherBuffer.AppendLine(sql);
                     _otherBuffer.AppendLine();
                 }

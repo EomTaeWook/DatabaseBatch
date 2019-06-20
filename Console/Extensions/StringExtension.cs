@@ -7,7 +7,7 @@ namespace DatabaseBatch.Extensions
         public static string Replace(this string source, string[] replacements, string toReplace)
         {
             var sb = new StringBuilder(source);
-            foreach(var word in replacements)
+            foreach (var word in replacements)
             {
                 sb.Replace(word, toReplace);
             }
@@ -17,7 +17,7 @@ namespace DatabaseBatch.Extensions
         {
             int index = -1;
             nextIndex = 0;
-            foreach(var value in anyOf)
+            foreach (var value in anyOf)
             {
                 var findIndex = source.IndexOf(value, startIndex);
                 if (index == -1)

@@ -1,5 +1,4 @@
-﻿using DatabaseBatch.Extensions;
-using DatabaseBatch.Models;
+﻿using DatabaseBatch.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,11 +10,11 @@ namespace DatabaseBatch.Infrastructure
         public static bool ParseAlterCommnad(string sql, out List<ParseSqlData> parseSqlDatas)
         {
             parseSqlDatas = new List<ParseSqlData>();
-            MySqlReader reader = new MySqlReader(sql);
+            BaseSqlReader reader = new MySqlReader(sql);
             string table = "ALTER TABLE";
             while (reader.NextLine(out string line))
             {
-                if(line.ToUpper().StartsWith(table))
+                if (line.ToUpper().StartsWith(table))
                 {
                     int findIndex = line.IndexOf(' ', table.Length + 1);
                     var tableName = line.Substring(table.Length + 1, findIndex - table.Length - 1).Replace("`", "");
@@ -99,7 +98,7 @@ namespace DatabaseBatch.Infrastructure
                     if (!body.ToUpper().StartsWith(key))
                         continue;
 
-                    foreach(var value in Consts.MySqlReservedKeyword[key])
+                    foreach (var value in Consts.MySqlReservedKeyword[key])
                     {
                         var idx = body.ToUpper().IndexOf(value);
                         if (idx == -1)
@@ -120,13 +119,13 @@ namespace DatabaseBatch.Infrastructure
             }
             return true;
         }
-        public static bool ParseCreateTableCommnad(string sql , out TableInfoModel tableInfoData)
+        public static bool ParseCreateTableCommnad(string sql, out TableInfoModel tableInfoData)
         {
             tableInfoData = new TableInfoModel()
             {
                 Columns = new Dictionary<string, ParseSqlData>(),
             };
-            MySqlReader reader = new MySqlReader(sql);
+            BaseSqlReader reader = new MySqlReader(sql);
             while (reader.NextLine(out string line))
             {
                 if (line.ToUpper().StartsWith("CREATE TABLE"))
@@ -229,10 +228,10 @@ namespace DatabaseBatch.Infrastructure
         public static bool CheckConnectDatabase(string sql, out string database)
         {
             database = null;
-            MySqlReader reader = new MySqlReader(sql);
-            while(reader.NextLine(out string line))
+            BaseSqlReader reader = new MySqlReader(sql);
+            while (reader.NextLine(out string line))
             {
-                if(line.ToUpper().StartsWith("USE"))
+                if (line.ToUpper().StartsWith("USE"))
                 {
                     database = line.Split(' ').Skip(1).Aggregate((l, r) => $"{l} {r}").Replace("`", "");
                     return true;

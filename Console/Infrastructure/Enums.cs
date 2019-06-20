@@ -5,7 +5,7 @@
         Add,
         Modify,
         Drop,
-        Change, 
+        Change,
         Alter,
 
         Max
