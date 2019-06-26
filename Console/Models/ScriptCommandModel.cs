@@ -11,11 +11,12 @@ namespace DatabaseBatch.Models
         }
 
         IDbConnection IDbCommand.Connection { get => this.Connection; set => throw new System.NotImplementedException(); }
-
-
         public IDbTransaction Transaction { get => throw new System.NotImplementedException(); set => throw new System.NotImplementedException(); }
+
         public string CommandText { get => throw new System.NotImplementedException(); set => throw new System.NotImplementedException(); }
+
         public int CommandTimeout { get => throw new System.NotImplementedException(); set => throw new System.NotImplementedException(); }
+
         public CommandType CommandType { get => throw new System.NotImplementedException(); set => throw new System.NotImplementedException(); }
 
         public IDataParameterCollection Parameters => throw new System.NotImplementedException();

@@ -11,13 +11,13 @@ namespace DatabaseBatch.Infrastructure
 {
     public class MySqlManager : BaseSqlManager
     {
-        private StringBuilder _tableBuffer = new StringBuilder();
-        private StringBuilder _otherBuffer = new StringBuilder();
+        private readonly StringBuilder _outputTableBuffer = new StringBuilder();
+        private readonly StringBuilder _outputOtherBuffer = new StringBuilder();
 
-        private Dictionary<string, TableInfoModel> _bufferTable = new Dictionary<string, TableInfoModel>();
+        private readonly Dictionary<string, TableInfoModel> _scriptTables = new Dictionary<string, TableInfoModel>();
 
-        private Dictionary<string, TableInfoModel> _dbTable;
-        private Dictionary<string, List<IndexModel>> _dbIndexTable;
+        private Dictionary<string, TableInfoModel> _dbTables;
+        private Dictionary<string, List<IndexModel>> _dbIndexTables;
 
         private string connectedDatabaseName;
         public override void Init(Config config)
@@ -26,9 +26,9 @@ namespace DatabaseBatch.Infrastructure
             var connection = new MySqlConnection(config.SqlConnect);
             connectedDatabaseName = connection.Database.ToUpper();
 
-            _dbTable = GetMySqlTableInfo(connection);
+            _dbTables = GetMySqlTableInfo(connection);
 
-            _dbIndexTable = GetMySqlIndexInfo(new MySqlConnection(config.SqlConnect));
+            _dbIndexTables = GetMySqlIndexInfo(new MySqlConnection(config.SqlConnect));
         }
         public override void Publish()
         {
@@ -60,11 +60,11 @@ namespace DatabaseBatch.Infrastructure
         private void MakeTableScript()
         {
             //테이블 변경점을 찾아보자
-            foreach (var table in _bufferTable)
+            foreach (var table in _scriptTables)
             {
-                if (_dbTable.ContainsKey(table.Key))
+                if (_dbTables.ContainsKey(table.Key))
                 {
-                    var connectDbTable = _dbTable[table.Key];
+                    var connectDbTable = _dbTables[table.Key];
                     foreach (var column in table.Value.Columns)
                     {
                         if (connectDbTable.Columns.ContainsKey(column.Key.ToLower()))
@@ -110,9 +110,9 @@ namespace DatabaseBatch.Infrastructure
             if (string.IsNullOrEmpty(_config.AlterTablePath))
                 return;
 
-            _tableBuffer.AppendLine($"DELIMITER $$");
-            _tableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_alter_table`;");
-            _tableBuffer.AppendLine($"CREATE PROCEDURE `make_alter_table`() BEGIN");
+            _outputTableBuffer.AppendLine($"DELIMITER $$");
+            _outputTableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_alter_table`;");
+            _outputTableBuffer.AppendLine($"CREATE PROCEDURE `make_alter_table`() BEGIN");
 
             var directoryInfo = new DirectoryInfo(_config.AlterTablePath);
             var files = GetSqlFiles(directoryInfo);
@@ -143,37 +143,37 @@ namespace DatabaseBatch.Infrastructure
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
                                     InputManager.Instance.WriteTrace("");
-                                    _otherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                    _outputOtherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
-                                else if (_bufferTable.ContainsKey(data.TableName))
+                                else if (_scriptTables.ContainsKey(data.TableName))
                                 {
 
-                                    if (_bufferTable[data.TableName].Columns.ContainsKey(data.ColumnName))
+                                    if (_scriptTables[data.TableName].Columns.ContainsKey(data.ColumnName))
                                     {
                                         if (data.CommandType == CommandType.Change)
                                         {
-                                            _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
-                                            _bufferTable[data.TableName].Columns.Add(data.ChangeColumnName, data);
+                                            _scriptTables[data.TableName].Columns.Remove(data.ColumnName);
+                                            _scriptTables[data.TableName].Columns.Add(data.ChangeColumnName, data);
                                         }
                                         if (data.CommandType == CommandType.Drop)
                                         {
-                                            _bufferTable[data.TableName].Columns.Remove(data.ColumnName);
+                                            _scriptTables[data.TableName].Columns.Remove(data.ColumnName);
                                         }
                                     }
                                     else
                                     {
-                                        _bufferTable[data.TableName].Columns.Add(data.ColumnName, data);
+                                        _scriptTables[data.TableName].Columns.Add(data.ColumnName, data);
                                     }
                                 }
                                 //Create Table에 정보가 없는 경우 현재 접속한 DB 에서 Table 정보를 가져왔음. 
-                                else if (_dbTable.ContainsKey(data.TableName) && !_bufferTable.ContainsKey(data.TableName))
+                                else if (_dbTables.ContainsKey(data.TableName) && !_scriptTables.ContainsKey(data.TableName))
                                 {
-                                    var option = _dbTable[data.TableName].TableOption;
-                                    _bufferTable.Add(data.TableName, new TableInfoModel()
+                                    var option = _dbTables[data.TableName].TableOption;
+                                    _scriptTables.Add(data.TableName, new TableInfoModel()
                                     {
-                                        Columns = _dbTable[data.TableName].Columns.ToDictionary(r => r.Key, r => r.Value),
+                                        Columns = _dbTables[data.TableName].Columns.ToDictionary(r => r.Key, r => r.Value),
                                         TableName = data.TableName,
-                                        TableOption = _dbTable[data.TableName].TableOption
+                                        TableOption = _dbTables[data.TableName].TableOption
                                     });
                                 }
                             }
@@ -187,34 +187,34 @@ namespace DatabaseBatch.Infrastructure
                                     continue;
                                 }
 
-                                var index = _dbIndexTable[data.TableName].Find(r => r.IndexName == data.ColumnName);
+                                var index = _dbIndexTables[data.TableName].Find(r => r.IndexName == data.ColumnName);
                                 if (index == null && data.CommandType == CommandType.Add)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] Name[ {data.ColumnName} ] [ {data.Command} ] (이)가 추가됩니다.");
                                     InputManager.Instance.WriteTrace("");
-                                    _dbIndexTable[data.TableName].Add(new IndexModel()
+                                    _dbIndexTables[data.TableName].Add(new IndexModel()
                                     {
                                         IndexName = data.ColumnName,
                                         TableName = data.TableName
                                     });
-                                    _tableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                    _outputTableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
                                 else if (index != null && data.CommandType == CommandType.Drop)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] Name[ {data.Command} ] (이)가 제거됩니다.");
                                     InputManager.Instance.WriteTrace("");
-                                    _dbIndexTable[data.TableName].Add(new IndexModel()
+                                    _dbIndexTables[data.TableName].Add(new IndexModel()
                                     {
                                         IndexName = data.ColumnName,
                                         TableName = data.TableName
                                     });
-                                    _tableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                    _outputTableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
                                 else if (data.CommandType == CommandType.Alter)
                                 {
                                     InputManager.Instance.WriteTrace($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
                                     InputManager.Instance.WriteTrace("");
-                                    _tableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
+                                    _outputTableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
                                 }
                             }
                         }
@@ -222,14 +222,14 @@ namespace DatabaseBatch.Infrastructure
                 }
             }
 
-            _tableBuffer.AppendLine($"END $$;");
+            _outputTableBuffer.AppendLine($"END $$;");
 
-            _tableBuffer.AppendLine($"DELIMITER ;");
+            _outputTableBuffer.AppendLine($"DELIMITER ;");
 
-            _tableBuffer.AppendLine($"CALL `make_alter_table`();");
-            _tableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_alter_table`;");
+            _outputTableBuffer.AppendLine($"CALL `make_alter_table`();");
+            _outputTableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_alter_table`;");
 
-            _tableBuffer.AppendLine();
+            _outputTableBuffer.AppendLine();
 
         }
         private void LoadTable()
@@ -240,9 +240,9 @@ namespace DatabaseBatch.Infrastructure
             if (string.IsNullOrEmpty(_config.TablePath))
                 return;
 
-            _tableBuffer.AppendLine($"DELIMITER $$");
-            _tableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_create_table`;");
-            _tableBuffer.AppendLine($"CREATE PROCEDURE `make_create_table`() BEGIN");
+            _outputTableBuffer.AppendLine($"DELIMITER $$");
+            _outputTableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_create_table`;");
+            _outputTableBuffer.AppendLine($"CREATE PROCEDURE `make_create_table`() BEGIN");
 
 
             var directoryInfo = new DirectoryInfo(_config.TablePath);
@@ -270,12 +270,12 @@ namespace DatabaseBatch.Infrastructure
                     }
                     if (MySqlParseHelper.ParseCreateTableCommnad(sql, out TableInfoModel parseTableData))
                     {
-                        if (!_dbTable.ContainsKey(parseTableData.TableName.ToLower()))
+                        if (!_dbTables.ContainsKey(parseTableData.TableName.ToLower()))
                         {
-                            _tableBuffer.AppendLine(sql);
+                            _outputTableBuffer.AppendLine(sql);
                             InputManager.Instance.WriteTrace($"Table[ {parseTableData.TableName} ] (이)가 생성됩니다.");
                         }
-                        _bufferTable.Add(parseTableData.TableName, parseTableData);
+                        _scriptTables.Add(parseTableData.TableName, parseTableData);
 
                         //기존 코드 => Craete 기준으로 변경 감지
                         //    var dbColumns = currentDBTables[parseTableData.TableName.ToLower()].Columns;
@@ -306,14 +306,14 @@ namespace DatabaseBatch.Infrastructure
                 }
             }
 
-            _tableBuffer.AppendLine($"END $$;");
+            _outputTableBuffer.AppendLine($"END $$;");
 
-            _tableBuffer.AppendLine($"DELIMITER ;");
+            _outputTableBuffer.AppendLine($"DELIMITER ;");
 
-            _tableBuffer.AppendLine($"CALL `make_create_table`();");
-            _tableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_create_table`;");
+            _outputTableBuffer.AppendLine($"CALL `make_create_table`();");
+            _outputTableBuffer.AppendLine($"DROP PROCEDURE IF EXISTS `make_create_table`;");
 
-            _tableBuffer.AppendLine();
+            _outputTableBuffer.AppendLine();
         }
 
         private void Deployment(string path, PublishDeploymentType publishDeploymentType)
@@ -340,7 +340,7 @@ namespace DatabaseBatch.Infrastructure
         }
         private void LoadSp()
         {
-            _otherBuffer.AppendLine();
+            _outputOtherBuffer.AppendLine();
             InputManager.Instance.WriteInfo($">>>Load Stored Procedure Files : {_config.StoredProcedurePath}");
             if (string.IsNullOrEmpty(_config.StoredProcedurePath))
                 return;
@@ -366,8 +366,8 @@ namespace DatabaseBatch.Infrastructure
                             continue;
                         }
                     }
-                    _otherBuffer.AppendLine(sql);
-                    _otherBuffer.AppendLine();
+                    _outputOtherBuffer.AppendLine(sql);
+                    _outputOtherBuffer.AppendLine();
                 }
             }
         }
@@ -377,11 +377,11 @@ namespace DatabaseBatch.Infrastructure
             if (File.Exists(Consts.OutputScript))
                 File.Delete(Consts.OutputScript);
 
-            File.WriteAllText(Consts.OutputScript, _tableBuffer.ToString());
+            File.WriteAllText(Consts.OutputScript, _outputTableBuffer.ToString());
 
             File.AppendAllText(Consts.OutputScript, "\r\n");
 
-            File.AppendAllText(Consts.OutputScript, _otherBuffer.ToString());
+            File.AppendAllText(Consts.OutputScript, _outputOtherBuffer.ToString());
 
             InputManager.Instance.WriteTrace($"Create Script File : {Consts.OutputScript}");
         }
