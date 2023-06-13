@@ -15,73 +15,7 @@ namespace DatabaseBatch.Infrastructure
 
         protected Config _config;
 
-        protected Dictionary<string, List<IndexModel>> GetMySqlIndexInfo(IDbConnection conn)
-        {
-            var tables = new Dictionary<string, List<IndexModel>>();
-            var sqlCommand = $"SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = '{conn.Database}' AND INDEX_NAME <> 'PRIMARY';";
-            conn.Open();
-            var cmd = conn.CreateCommand();
-            cmd.Connection = conn;
-            cmd.CommandText = sqlCommand;
-            cmd.CommandType = System.Data.CommandType.Text;
-
-            var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                var tableName = reader["TABLE_NAME"].ToString().ToLower();
-                var indexName = reader["INDEX_NAME"].ToString().ToLower();
-                var indexModel = new IndexModel()
-                {
-                    TableName = tableName,
-                    IndexName = indexName,
-                };
-
-                if (!tables.ContainsKey(indexModel.TableName))
-                {
-                    tables.Add(indexModel.TableName, new List<IndexModel>());
-                }
-                tables[indexModel.TableName].Add(indexModel);
-            }
-            conn.Close();
-            return tables;
-        }
-        protected Dictionary<string, TableInfoModel> GetMySqlTableInfo(IDbConnection conn)
-        {
-            var tables = new Dictionary<string, TableInfoModel>();
-            var sqlCommand = $"SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE  FROM Information_schema.columns WHERE table_schema = '{conn.Database}';";
-            conn.Open();
-            var cmd = conn.CreateCommand();
-            cmd.Connection = conn;
-            cmd.CommandText = sqlCommand;
-            cmd.CommandType = System.Data.CommandType.Text;
-
-            var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                var tableName = reader["TABLE_NAME"].ToString().ToLower();
-                var columnName = reader["COLUMN_NAME"].ToString().ToLower();
-                var columnTypes = reader["COLUMN_TYPE"].ToString().ToLower().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                var columnOption = "";
-                if (columnTypes.Count() > 1)
-                {
-                    columnOption = columnTypes.Skip(1).Aggregate((opton, next) => $"{opton} {next}");
-                }
-                var column = new ParseSqlData()
-                {
-                    TableName = tableName,
-                    ColumnName = columnName,
-                    ColumnType = columnTypes[0],
-                    ColumnOptions = columnOption
-                };
-
-                if (!tables.ContainsKey(column.TableName))
-                {
-                    tables.Add(column.TableName, new TableInfoModel());
-                }
-                tables[column.TableName].Columns.Add(column.ColumnName, column);
-            }
-            conn.Close();
-            return tables;
-        }
+        
+        
     }
 }

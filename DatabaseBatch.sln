@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.168
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33530.505
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseBatch", "Console\DatabaseBatch.csproj", "{4044D2F0-0790-49A1-B6F7-2E43B9A82F75}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseBatch", "DatabaseBatch\DatabaseBatch.csproj", "{0564C80F-CE64-42CE-9B5E-0E097F63B453}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseBatchV1", "Console\DatabaseBatchV1.csproj", "{4044D2F0-0790-49A1-B6F7-2E43B9A82F75}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,6 +13,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0564C80F-CE64-42CE-9B5E-0E097F63B453}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0564C80F-CE64-42CE-9B5E-0E097F63B453}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0564C80F-CE64-42CE-9B5E-0E097F63B453}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0564C80F-CE64-42CE-9B5E-0E097F63B453}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4044D2F0-0790-49A1-B6F7-2E43B9A82F75}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4044D2F0-0790-49A1-B6F7-2E43B9A82F75}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4044D2F0-0790-49A1-B6F7-2E43B9A82F75}.Release|Any CPU.ActiveCfg = Release|Any CPU

@@ -3,3 +3,6 @@ Console/obj/
 Console/Config.json
 packages/
 Console/bin/
+/DatabaseBatch/Config.json
+DatabaseBatch/bin/**/*
+DatabaseBatch/obj/**/*

@@ -1,6 +1,5 @@
 ﻿using DatabaseBatch.Extensions;
 using DatabaseBatch.Models;
-using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,13 +21,13 @@ namespace DatabaseBatch.Infrastructure
         private string connectedDatabaseName;
         public override void Init(Config config)
         {
-            _config = config;
-            var connection = new MySqlConnection(config.SqlConnect);
-            connectedDatabaseName = connection.Database.ToUpper();
+            //_config = config;
+            //var connection = new mysqlConnection(config.SqlConnect);
+            //connectedDatabaseName = connection.Database.ToUpper();
 
-            _dbTables = GetMySqlTableInfo(connection);
+            //_dbTables = GetMySqlTableInfo(connection);
 
-            _dbIndexTables = GetMySqlIndexInfo(new MySqlConnection(config.SqlConnect));
+            //_dbIndexTables = GetMySqlIndexInfo(new MySqlConnection(config.SqlConnect));
         }
         public override void Publish()
         {
@@ -318,25 +317,25 @@ namespace DatabaseBatch.Infrastructure
 
         private void Deployment(string path, PublishDeploymentType publishDeploymentType)
         {
-            if (string.IsNullOrEmpty(path))
-                return;
+            //if (string.IsNullOrEmpty(path))
+            //    return;
 
-            InputManager.Instance.WriteInfo($">>>{publishDeploymentType.ToString()}");
+            //InputManager.Instance.WriteInfo($">>>{publishDeploymentType.ToString()}");
 
-            InputManager.Instance.Write($"Read File : {path}");
+            //InputManager.Instance.Write($"Read File : {path}");
 
-            var sqlCommand = File.ReadAllText(path);
+            //var sqlCommand = File.ReadAllText(path);
 
-            if (string.IsNullOrEmpty(path))
-                throw new Exception($"File : { path } 내용이 없습니다.");
+            //if (string.IsNullOrEmpty(path))
+            //    throw new Exception($"File : { path } 내용이 없습니다.");
 
-            using (var connection = new MySqlConnection(_config.SqlConnect))
-            {
-                connection.Open();
-                var command = new MySqlScript(connection, sqlCommand);
-                command.Execute();
-                connection.Close();
-            }
+            //using (var connection = new MySqlConnection(_config.SqlConnect))
+            //{
+            //    connection.Open();
+            //    var command = new MySqlScript(connection, sqlCommand);
+            //    command.Execute();
+            //    connection.Close();
+            //}
         }
         private void LoadSp()
         {
