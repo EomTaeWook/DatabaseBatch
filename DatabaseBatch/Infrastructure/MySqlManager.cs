@@ -6,13 +6,13 @@ using Dignus.Log;
 using MySql.Data.MySqlClient;
 using System.Data;
 using System.Text;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace DatabaseBatch.Infrastructure
 {
     [Injectable(Dignus.DependencyInjection.LifeScope.Transient)]
     public class MySqlManager : ISqlManager
     {
+        public MySqlParseProcessor MySqlParseProcessor { get; private set; }
         private readonly ArrayList<MySqlScript> _outputTableScripts = new();
 
         private readonly Dictionary<string, TableInfoModel> _scriptTables = new();
@@ -135,21 +135,6 @@ namespace DatabaseBatch.Infrastructure
         }
 
 
-        private bool DataTypeCompare(ColumnModel left,  ColumnModel right)
-        {
-            if (MySqlParseHelper.BaseMySqlDataType.TryGetValue(left.ColumnDataType, out string value1) == false)
-            {
-                value1 = left.ColumnDataType;
-            }
-
-            if (MySqlParseHelper.BaseMySqlDataType.TryGetValue(right.ColumnDataType, out string value2) == false)
-            {
-                value2 = right.ColumnDataType;
-            }
-
-            return value1.ToLower() == value2.ToLower();
-        }
-
         private void MakeTableScript()
         {
             //테이블 변경점을 찾아보자
@@ -161,9 +146,9 @@ namespace DatabaseBatch.Infrastructure
                     {
                         if (connectionTable.Columns.TryGetValue(column.Key.ToLower(), out ParseSqlData parseSqlData))
                         {
-                            if(DataTypeCompare(column.Value, parseSqlData) == false)
+                            if(MySqlParseProcessor.DataTypeCompare(column.Value, parseSqlData) == false)
                             {
-                                MySqlParseHelper.AlterMySqlColumn(column.Value);
+                                MySqlParseProcessor.AlterMySqlColumn(column.Value);
                                 LogHelper.Info($"Table[ {table.TableName} ] ColumnName[ {column.Value.ColumnName} ] [ {parseSqlData.ColumnDataType} ] 에서 [ {column.Value.ColumnDataType} ] 으로 변경됩니다.");
                             }
                         }
@@ -173,12 +158,12 @@ namespace DatabaseBatch.Infrastructure
                             if (column.Value.CommandType == CommandType.Add && column.Value.ClassificationType == ClassificationType.Column)
                             {
                                 LogHelper.Info($"Table[ {table.TableName} ] ColumnName[ {column.Value.ColumnName} ( {column.Value.ColumnDataType} ) ] (이)가 추가됩니다.");
-                                var output = MySqlParseHelper.AlterMySqlColumn(column.Value);
+                                var output = MySqlParseProcessor.AlterMySqlColumn(column.Value);
                             }
                             else if (column.Value.CommandType == CommandType.Change && column.Value.ClassificationType == ClassificationType.Column)
                             {
                                 LogHelper.Info($"Table[ {table.TableName} ] ColumnName[ {column.Value.ColumnName} ] 에서 ColumnName[ {column.Value.ChangeColumnName} ] [ {column.Value.ColumnDataType} ] 으로 변경됩니다.");
-                                MySqlParseHelper.AlterMySqlColumnChange(column.Value);
+                                MySqlParseProcessor.AlterMySqlColumnChange(column.Value);
                             }
                             else
                             {
@@ -212,7 +197,7 @@ namespace DatabaseBatch.Infrastructure
                 if (string.IsNullOrEmpty(query))
                     throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                if (MySqlParseHelper.CheckConnectDatabase(query, out string database))
+                if (MySqlParseProcessor.CheckConnectDatabase(query, out string database))
                 {
                     if (!database.ToLower().Equals(_dbContext.GetDatabaseName()))
                     {
@@ -220,13 +205,20 @@ namespace DatabaseBatch.Infrastructure
                         continue;
                     }
                 }
-                if (MySqlParseHelper.ParseAlterCommand(query, out List<ParseSqlData> parseSqlDatas))
+                if (MySqlParseProcessor.ParseAlterCommand(query, out List<ParseSqlData> parseSqlDatas))
                 {
                     foreach (var item in parseSqlDatas)
                     {
-                        if (item.CommandType == CommandType.Alter)
+                        if(_tableToDatabase.TryGetValue(item.TableName, out TableInfoModel tableInfoModel))
                         {
-                            InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {item.TableName} ] [ {item.Command} ] (이)가 실행됩니다.");
+                            if(tableInfoModel.Columns.TryGetValue(item.ColumnName, out ParseSqlData value))
+                            {
+
+                            }
+                            else
+                            {
+                                InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {item.TableName} ] [ {item.Command} ] (이)가 실행됩니다.");
+                            }
                         }
                     }
                 }
@@ -347,7 +339,7 @@ namespace DatabaseBatch.Infrastructure
                 }
                 MySqlScript script = new MySqlScript(query);
 
-                if (MySqlParseHelper.CheckConnectDatabase(query, out string database))
+                if (MySqlParseProcessor.CheckConnectDatabase(query, out string database))
                 {
                     if (!database.ToLower().Equals(_dbContext.GetDatabaseName()))
                     {
@@ -356,7 +348,7 @@ namespace DatabaseBatch.Infrastructure
                     }
                 }
 
-                if (MySqlParseHelper.ParseCreateTableCommand(query, out TableInfoModel parseTableData))
+                if (MySqlParseProcessor.ParseCreateTableCommand(query, out TableInfoModel parseTableData))
                 {
                     if(_tableToDatabase.ContainsKey(parseTableData.TableName.ToLower()) == false)
                     {
@@ -411,7 +403,7 @@ namespace DatabaseBatch.Infrastructure
                 {
                     throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
                 }
-                if (MySqlParseHelper.CheckConnectDatabase(query, out string database))
+                if (MySqlParseProcessor.CheckConnectDatabase(query, out string database))
                 {
                     if (!database.ToLower().Equals(_dbContext.GetDatabaseName()))
                     {

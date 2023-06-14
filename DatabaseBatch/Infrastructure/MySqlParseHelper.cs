@@ -1,10 +1,12 @@
 ﻿using DatabaseBatch.Models;
+using Dignus.DependencyInjection.Attribute;
 
 namespace DatabaseBatch.Infrastructure
 {
-    public class MySqlParseHelper
+    [Injectable(Dignus.DependencyInjection.LifeScope.Singleton)]
+    public class MySqlParseProcessor
     {
-        public static Dictionary<string, string> BaseMySqlDataType = new(StringComparer.OrdinalIgnoreCase)
+        private Dictionary<string, string> _mySqlDataType = new(StringComparer.OrdinalIgnoreCase)
         {
             {"int", "int(11)" },
             { "varchar", "varchar(100)"},
@@ -13,7 +15,7 @@ namespace DatabaseBatch.Infrastructure
         };
 
 
-        public static readonly Dictionary<string, List<string>> MySqlReservedKeyword = new(StringComparer.OrdinalIgnoreCase)
+        private readonly Dictionary<string, List<string>> _mySqlReservedKeyword = new(StringComparer.OrdinalIgnoreCase)
         {
             { "primary key", new List<string>(){")","," } },
             { "index", new List<string>(){ ")", ","} },
@@ -29,8 +31,21 @@ namespace DatabaseBatch.Infrastructure
             { "fulltext index", new List<string>(){ ")", "," } },
             { "spatial index", new List<string>(){ ")", "," } },
         };
+        public bool DataTypeCompare(ColumnModel left, ColumnModel right)
+        {
+            if (_mySqlDataType.TryGetValue(left.ColumnDataType, out string value1) == false)
+            {
+                value1 = left.ColumnDataType;
+            }
 
-        public static bool ParseAlterCommand(string query, out List<ParseSqlData> parseSqlDatas)
+            if (_mySqlDataType.TryGetValue(right.ColumnDataType, out string value2) == false)
+            {
+                value2 = right.ColumnDataType;
+            }
+
+            return value1.ToLower() == value2.ToLower();
+        }
+        public bool ParseAlterCommand(string query, out List<ParseSqlData> parseSqlDatas)
         {
             parseSqlDatas = new List<ParseSqlData>();
             var reader = new MySqlReader(query, new string[] { ",",";" });
@@ -59,7 +74,7 @@ namespace DatabaseBatch.Infrastructure
                 changedData.TableName = tableName;
                 changedData.CommandType = command;
                 changedData.ColumnName = splits[2];
-                if(BaseMySqlDataType.TryGetValue(splits[3], out string dataType))
+                if(_mySqlDataType.TryGetValue(splits[3], out string dataType))
                 {
                     changedData.ColumnDataType = dataType;
                 }
@@ -73,19 +88,16 @@ namespace DatabaseBatch.Infrastructure
                 }
                 changedData.ColumnOptions = changedData.ColumnOptions?.Trim();
 
-
                 if (Enum.TryParse(splits[1], true, out ClassificationType classificationType) == true)
                 {
                     changedData.ClassificationType = classificationType;
                 }
-
                 parseSqlDatas.Add(changedData);
-
             }
             return true;
         }
         
-        public static bool ParseCreateTableCommand(string sql, out TableInfoModel tableInfoData)
+        public bool ParseCreateTableCommand(string sql, out TableInfoModel tableInfoData)
         {
             tableInfoData = new TableInfoModel();
             var reader = new MySqlReader(sql);
@@ -113,7 +125,7 @@ namespace DatabaseBatch.Infrastructure
                     bool isReservedKeyword = false;
                     var queue = new Queue<string>();
 
-                    foreach (var reservedKeyword in MySqlReservedKeyword.Keys)
+                    foreach (var reservedKeyword in _mySqlReservedKeyword.Keys)
                     {
                         isReservedKeyword = bodyLine.ToLower().StartsWith(reservedKeyword);
                         if (isReservedKeyword == false)
@@ -155,7 +167,7 @@ namespace DatabaseBatch.Infrastructure
                         while (queue.Count > 0)
                         {
                             var reservedKeyword = queue.Dequeue();
-                            if (MySqlReservedKeyword.TryGetValue(reservedKeyword, out List<string> close))
+                            if (_mySqlReservedKeyword.TryGetValue(reservedKeyword, out List<string> close))
                             {
                                 do
                                 {
@@ -186,7 +198,7 @@ namespace DatabaseBatch.Infrastructure
             }
             return true;
         }
-        public static bool CheckConnectDatabase(string sql, out string database)
+        public bool CheckConnectDatabase(string sql, out string database)
         {
             database = null;
             var reader = new MySqlReader(sql);
@@ -201,15 +213,15 @@ namespace DatabaseBatch.Infrastructure
             return false;
         }
 
-        public static string AlterMySqlColumnChange(ParseSqlData model)
+        public string AlterMySqlColumnChange(ParseSqlData model)
         {
             return $"ALTER TABLE `{model.TableName}` CHANGE COLUMN `{model.ColumnName}` `{model.ChangeColumnName}` {model.ColumnDataType} {model.ColumnOptions};";
         }
-        public static string AlterMySqlColumn(ParseSqlData model)
+        public string AlterMySqlColumn(ParseSqlData model)
         {
             return $"ALTER TABLE `{model.TableName}` {model.CommandType.ToString().ToLower()} COLUMN `{model.ColumnName}` {model.ColumnDataType} {(model.CommandType != CommandType.Drop ? $"{model.ColumnOptions}" : "")};";
         }
-        public static string CreateSqlCommand(ParseSqlData model)
+        public string CreateSqlCommand(ParseSqlData model)
         {
             return $"ALTER TABLE `{model.TableName}` {model.CommandType.ToString().ToLower()} {model.Command};";
         }
