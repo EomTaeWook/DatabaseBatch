@@ -8,8 +8,8 @@ namespace DatabaseBatch.Infrastructure
     public class MySqlReader
     {
         private readonly string[] _delimiters;
-        private StringBuilder _sb = new StringBuilder();
-        private SimpleStringReader _reader;
+        private readonly StringBuilder _sb = new StringBuilder();
+        private readonly SimpleStringReader _reader;
 
         public MySqlReader(string query) : this(query , new string[] { ";", "$$" })
         {
@@ -17,10 +17,9 @@ namespace DatabaseBatch.Infrastructure
         public MySqlReader(string query, string[] delimiters)
         {
             query = query.Replace(new string[] { "\r\n", "\t", "\n", "\r" }, " ");
-
             _reader = new SimpleStringReader(query);
             _delimiters = delimiters;
-        }
+        }        
         public bool NextLine(out string line)
         {
             line = null;

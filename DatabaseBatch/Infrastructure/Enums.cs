@@ -7,6 +7,7 @@
         Drop,
         Change,
         Alter,
+        Create,
 
         Max
     }

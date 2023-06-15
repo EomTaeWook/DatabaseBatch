@@ -5,20 +5,22 @@ using Dignus.DependencyInjection.Attribute;
 using Dignus.Log;
 using MySql.Data.MySqlClient;
 using System.Data;
+using System.Reflection.PortableExecutable;
 using System.Text;
+using System.Threading.Channels;
 
 namespace DatabaseBatch.Infrastructure
 {
     [Injectable(Dignus.DependencyInjection.LifeScope.Transient)]
     public class MySqlManager : ISqlManager
     {
-        public MySqlParseProcessor MySqlParseProcessor { get; private set; }
+        [Inject]
+        public MySqlParsor MySqlParsor { get; private set; }
         private readonly ArrayList<MySqlScript> _outputTableScripts = new();
 
         private readonly Dictionary<string, TableInfoModel> _scriptTables = new();
 
-        private Dictionary<string, TableInfoModel> _tableToDatabase;
-        private Dictionary<string, List<IndexModel>> _dbIndexTables;
+        private Dictionary<string, TableInfoModel> _databaseToTables;
 
         private readonly Config _config;
         private readonly DBContext _dbContext;
@@ -26,91 +28,105 @@ namespace DatabaseBatch.Infrastructure
         {
             _config = config;
             _dbContext = dbContext;
+            _databaseToTables = new Dictionary<string, TableInfoModel>();
         }
         public void Init()
         {
-            _tableToDatabase = GetMySqlTableInfo();
-            _dbIndexTables = GetMySqlIndexInfo();
+            InitMySqlTableInfo();
         }
-        private Dictionary<string, List<IndexModel>> GetMySqlIndexInfo()
+
+        private void InitMySqlTableInfo()
         {
-            using (var conn = new MySqlConnection(_dbContext.GetConnString()))
+            using(MySqlConnection conn = new(_dbContext.GetConnString()))
             {
                 conn.Open();
 
-                var tables = new Dictionary<string, List<IndexModel>>();
-                var sqlCommand = $"SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = '{conn.Database}' AND INDEX_NAME <> 'PRIMARY';";
-                
+                var sqlCommand = $"SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE  FROM Information_schema.columns WHERE table_schema = '{conn.Database}';";
+
                 var cmd = conn.CreateCommand();
                 cmd.Connection = conn;
                 cmd.CommandText = sqlCommand;
                 cmd.CommandType = System.Data.CommandType.Text;
 
+                var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var tableName = reader["TABLE_NAME"].ToString().ToLower();
+                    var columnName = reader["COLUMN_NAME"].ToString().ToLower();
+                    var columnTypes = reader["COLUMN_TYPE"].ToString().ToLower().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    var columnOption = "";
+                    if (columnTypes.Length > 1)
+                    {
+                        columnOption = columnTypes.Skip(1).Aggregate((opton, next) => $"{opton} {next}");
+                    }
+                    var column = new SqlParseColumnData()
+                    {
+                        ColumnName = columnName,
+                        ColumnDataType = columnTypes[0],
+                        ColumnOptions = columnOption,
+                        ClassificationType = ClassificationType.Column,
+                    };
+
+                    if (!_databaseToTables.ContainsKey(tableName))
+                    {
+                        _databaseToTables.Add(tableName, new TableInfoModel()
+                        {
+                            TableName = tableName,
+                        });
+                    }
+                    _databaseToTables[tableName].Columns.Add(column.ColumnName, column);
+                }
+            };
+
+            using (MySqlConnection conn = new(_dbContext.GetConnString()))
+            {
+                conn.Open();
+                var sqlCommand = $"SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = '{conn.Database}' AND INDEX_NAME <> 'PRIMARY';";
+
+                var cmd = conn.CreateCommand();
+                cmd.Connection = conn;
+                cmd.CommandText = sqlCommand;
+                cmd.CommandType = System.Data.CommandType.Text;
 
                 var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
                     var tableName = reader["TABLE_NAME"].ToString().ToLower();
                     var indexName = reader["INDEX_NAME"].ToString().ToLower();
-                    var indexModel = new IndexModel()
-                    {
-                        TableName = tableName,
-                        IndexName = indexName,
-                    };
 
-                    if (!tables.ContainsKey(indexModel.TableName))
+                    if (!_databaseToTables.ContainsKey(tableName))
                     {
-                        tables.Add(indexModel.TableName, new List<IndexModel>());
+                        continue;
                     }
-                    tables[indexModel.TableName].Add(indexModel);
+                    _databaseToTables[tableName].IndexNames.Add(indexName);
                 }
-                return tables;
             }
-        }
 
-        private Dictionary<string, TableInfoModel> GetMySqlTableInfo()
-        {
-            using MySqlConnection conn = new(_dbContext.GetConnString());
-
-            conn.Open();
-
-            var tables = new Dictionary<string, TableInfoModel>();
-
-            var sqlCommand = $"SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE  FROM Information_schema.columns WHERE table_schema = '{conn.Database}';";
-
-            var cmd = conn.CreateCommand();
-            cmd.Connection = conn;
-            cmd.CommandText = sqlCommand;
-            cmd.CommandType = System.Data.CommandType.Text;
-
-
-            var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            using (MySqlConnection conn = new(_dbContext.GetConnString()))
             {
-                var tableName = reader["TABLE_NAME"].ToString().ToLower();
-                var columnName = reader["COLUMN_NAME"].ToString().ToLower();
-                var columnTypes = reader["COLUMN_TYPE"].ToString().ToLower().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                var columnOption = "";
-                if (columnTypes.Length > 1)
-                {
-                    columnOption = columnTypes.Skip(1).Aggregate((opton, next) => $"{opton} {next}");
-                }
-                var column = new ParseSqlData()
-                {
-                    ColumnName = columnName,
-                    ColumnDataType = columnTypes[0],
-                    ColumnOptions = columnOption
-                };
+                conn.Open();
 
-                if (!tables.ContainsKey(tableName))
+                var sqlCommand = $"SELECT DISTINCT TABLE_NAME, CONSTRAINT_TYPE, CONSTRAINT_NAME \r\nFROM information_schema.TABLE_CONSTRAINTS where TABLE_SCHEMA = '{conn.Database}' AND CONSTRAINT_NAME <> 'PRIMARY';";
+                var cmd = conn.CreateCommand();
+                cmd.Connection = conn;
+                cmd.CommandText = sqlCommand;
+                cmd.CommandType = System.Data.CommandType.Text;
+
+                var reader = cmd.ExecuteReader();
+                while (reader.Read())
                 {
-                    tables.Add(tableName, new TableInfoModel());
+                    var tableName = reader["TABLE_NAME"].ToString().ToLower();
+                    var fkName = reader["CONSTRAINT_NAME"].ToString().ToLower();
+
+                    if (!_databaseToTables.ContainsKey(tableName))
+                    {
+                        continue;
+                    }
+                    _databaseToTables[tableName].ForeignKeyNames.Add(fkName);
                 }
-                tables[tableName].Columns.Add(column.ColumnName, column);
             }
-
-            return tables;
         }
+
         public void Publish()
         {
             Deployment(_config.Publish.PreDeployment);
@@ -121,61 +137,142 @@ namespace DatabaseBatch.Infrastructure
         {
             //기본 테이블 세팅
             LoadTable();
-            
-
-            //기본 테이블에 추가 데이터 추가
+            //기본 테이블에 변경 데이터 적용
             LoadAlterTable();
-
-            MakeTableScript();
-
             LoadSp();
-            
-            //병합후 스크립트화
+
+            CompareWithDatabaseTable();
             OutputScript();
         }
 
 
-        private void MakeTableScript()
+        private void CompareWithDatabaseTable()
         {
-            //테이블 변경점을 찾아보자
-            foreach (var table in _scriptTables.Values)
+            foreach (var scriptTable in _scriptTables.Values)
             {
-                if (_tableToDatabase.TryGetValue(table.TableName, out TableInfoModel connectionTable))
+                if (_databaseToTables.TryGetValue(scriptTable.TableName, out TableInfoModel databaseTable) == false)
                 {
-                    foreach (var column in table.Columns)
+                    InputManager.Instance.WriteLine(ConsoleColor.Red, $"Table[ {scriptTable.TableName} ] 추가 됩니다.");
+                    continue;
+                }
+               
+                foreach (var scriptColumn in scriptTable.Columns.Values)
+                {
+                    if(databaseTable.Columns.TryGetValue(scriptColumn.ColumnName, out SqlParseColumnData databaseColumn) == false)
                     {
-                        if (connectionTable.Columns.TryGetValue(column.Key.ToLower(), out ParseSqlData parseSqlData))
-                        {
-                            if(MySqlParseProcessor.DataTypeCompare(column.Value, parseSqlData) == false)
-                            {
-                                MySqlParseProcessor.AlterMySqlColumn(column.Value);
-                                LogHelper.Info($"Table[ {table.TableName} ] ColumnName[ {column.Value.ColumnName} ] [ {parseSqlData.ColumnDataType} ] 에서 [ {column.Value.ColumnDataType} ] 으로 변경됩니다.");
-                            }
-                        }
-                        else
-                        {
-                            //테이블에 없음
-                            if (column.Value.CommandType == CommandType.Add && column.Value.ClassificationType == ClassificationType.Column)
-                            {
-                                LogHelper.Info($"Table[ {table.TableName} ] ColumnName[ {column.Value.ColumnName} ( {column.Value.ColumnDataType} ) ] (이)가 추가됩니다.");
-                                var output = MySqlParseProcessor.AlterMySqlColumn(column.Value);
-                            }
-                            else if (column.Value.CommandType == CommandType.Change && column.Value.ClassificationType == ClassificationType.Column)
-                            {
-                                LogHelper.Info($"Table[ {table.TableName} ] ColumnName[ {column.Value.ColumnName} ] 에서 ColumnName[ {column.Value.ChangeColumnName} ] [ {column.Value.ColumnDataType} ] 으로 변경됩니다.");
-                                MySqlParseProcessor.AlterMySqlColumnChange(column.Value);
-                            }
-                            else
-                            {
-                                LogHelper.Info($"Table[ {table.TableName} ] ColumnName[ {column.Value.ColumnName} ] [ {column.Value.ColumnDataType} ]");
-                                throw new Exception("Unknown Error");
-                            }
-                        }
+                        InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {scriptTable.TableName} ] Column Name[ {scriptColumn.ColumnName} ( {scriptColumn.ColumnDataType} ) ] (이)가 추가됩니다.");
+                        continue;
+                    }
+
+                   if (MySqlParsor.DataTypeCompare(scriptColumn, databaseColumn) == false)
+                   {
+                        InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {scriptTable.TableName} ] Column Name[ {databaseColumn.ColumnName} ] [ {databaseColumn.ColumnDataType} ] 에서 [ {scriptColumn.ColumnDataType} ] 으로 변경됩니다.");
+                   }
+                }
+
+                foreach(var databaseColumn in databaseTable.Columns.Values)
+                {
+                    if (scriptTable.Columns.TryGetValue(databaseColumn.ColumnName, out SqlParseColumnData scriptColumn) == false)
+                    {
+                        InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {databaseTable.TableName} ] Column Name[ {databaseColumn.ColumnName} ( {databaseColumn.ColumnDataType} ) ] (이)가 제거됩니다.");
+                        continue;
+                    }
+                }
+
+                foreach(var index in scriptTable.IndexNames)
+                {
+                    if (databaseTable.IndexNames.TryGetValue(index, out string _) == false)
+                    {
+                        InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {scriptTable.TableName} ] Index Name[ {index} ] (이)가 추가됩니다.");
+                        continue;
+                    }
+                }
+
+                foreach (var index in databaseTable.IndexNames)
+                {
+                    if (scriptTable.IndexNames.TryGetValue(index, out string _) == false)
+                    {
+                        InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {databaseTable.TableName} ] Index Name[ {index} ] (이)가 제거됩니다.");
+                        continue;
+                    }
+                }
+
+                foreach (var index in scriptTable.ForeignKeyNames)
+                {
+                    if (databaseTable.ForeignKeyNames.TryGetValue(index, out string _) == false)
+                    {
+                        InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {scriptTable.TableName} ] Foreign Key Name[ {index} ] (이)가 추가됩니다.");
+                        continue;
+                    }
+                }
+
+                foreach (var index in databaseTable.ForeignKeyNames)
+                {
+                    if (scriptTable.ForeignKeyNames.TryGetValue(index, out string _) == false)
+                    {
+                        InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {databaseTable.TableName} ] Foreign Key Name[ {index} ] (이)가 제거됩니다.");
+                        continue;
                     }
                 }
             }
 
+            foreach (var databaseTable in _databaseToTables.Values)
+            {
+                if (_scriptTables.TryGetValue(databaseTable.TableName, out TableInfoModel scriptTable) == false)
+                {
+                    InputManager.Instance.WriteLine(ConsoleColor.Red, $"Table[ {databaseTable.TableName} ] 존재하지 않습니다.");
+                    continue;
+                }
+            }
             Console.WriteLine();
+        }
+        private void ApplyTableChanges(SqlParseTableData alterScriptTable)
+        {
+            if (_scriptTables.TryGetValue(alterScriptTable.TableName, out TableInfoModel scriptTable) == false)
+            {
+                return;
+            }
+
+            foreach (var changed in alterScriptTable.SqlParseColumnDatas)
+            {
+                if (changed.ClassificationType == ClassificationType.Column)
+                {
+                    if (changed.CommandType == CommandType.Add)
+                    {
+                        scriptTable.Columns.Add(changed.ColumnName, changed);
+                    }
+                    else if (changed.CommandType == CommandType.Drop)
+                    {
+                        scriptTable.Columns.Remove(changed.ColumnName);
+                    }
+                    else if (changed.CommandType == CommandType.Modify)
+                    {
+                        scriptTable.Columns[changed.ColumnName] = changed;
+                    }
+                }
+                else if (changed.ClassificationType == ClassificationType.Index)
+                {
+                    if (changed.CommandType == CommandType.Drop)
+                    {
+                        scriptTable.IndexNames.Remove(changed.ColumnName);
+                    }
+                    else if (changed.CommandType == CommandType.Add)
+                    {
+                        scriptTable.IndexNames.Add(changed.ColumnName);
+                    }
+                }
+                else if(changed.ClassificationType == ClassificationType.ForeignKey)
+                {
+                    if (changed.CommandType == CommandType.Drop)
+                    {
+                        scriptTable.ForeignKeyNames.Remove(changed.ColumnName);
+                    }
+                    else if (changed.CommandType == CommandType.Add)
+                    {
+                        scriptTable.ForeignKeyNames.Add(changed.ColumnName);
+                    }
+                }
+            }
         }
 
         private void LoadAlterTable()
@@ -197,126 +294,22 @@ namespace DatabaseBatch.Infrastructure
                 if (string.IsNullOrEmpty(query))
                     throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
 
-                if (MySqlParseProcessor.CheckConnectDatabase(query, out string database))
+                var database = MySqlParsor.GetConnectDatabase(query);
+
+                if (!_dbContext.GetDatabaseName().Equals(MySqlParsor.GetConnectDatabase(query)))
                 {
-                    if (!database.ToLower().Equals(_dbContext.GetDatabaseName()))
-                    {
-                        InputManager.Instance.WriteLine(ConsoleColor.Red, $"File {files[i].Name} Database [ {_dbContext.GetDatabaseName()} ] 과 [ {database} ](이)가 다릅니다.");
-                        continue;
-                    }
+                    InputManager.Instance.WriteLine(ConsoleColor.Red, $"File {files[i].Name} Database [ {_dbContext.GetDatabaseName()} ] 과 [ {database} ](이)가 다릅니다.");
+                    continue;
                 }
-                if (MySqlParseProcessor.ParseAlterCommand(query, out List<ParseSqlData> parseSqlDatas))
+                var parseSqlDatas = MySqlParsor.ParseAlterCommand(query);
+
+                foreach (var alterScriptTable in parseSqlDatas)
                 {
-                    foreach (var item in parseSqlDatas)
-                    {
-                        if(_tableToDatabase.TryGetValue(item.TableName, out TableInfoModel tableInfoModel))
-                        {
-                            if(tableInfoModel.Columns.TryGetValue(item.ColumnName, out ParseSqlData value))
-                            {
-
-                            }
-                            else
-                            {
-                                InputManager.Instance.WriteLine(ConsoleColor.DarkGreen, $"Table[ {item.TableName} ] [ {item.Command} ] (이)가 실행됩니다.");
-                            }
-                        }
-                    }
+                    ApplyTableChanges(alterScriptTable);
                 }
-
-                //if (MySqlParseHelper.CheckConnectDatabase(sql, out string database))
-                //{
-                //    if (!database.ToUpper().Equals(connectedDatabaseName))
-                //    {
-                //        continue;
-                //    }
-                //}
-                //if (MySqlParseHelper.ParseAlterCommnad(sql, out List<ParseSqlData> parseSqlDatas))
-                //{
-                //    foreach (var data in parseSqlDatas)
-                //    {
-                //        if (data.ClassificationType == ClassificationType.Columns)
-                //        {
-                //            if (data.CommandType == CommandType.Alter)
-                //            {
-                //                LogHelper.Info($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
-                //                LogHelper.Info("");
-                //                _outputOtherBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
-                //            }
-                //            else if (_scriptTables.ContainsKey(data.TableName))
-                //            {
-
-                    //                if (_scriptTables[data.TableName].Columns.ContainsKey(data.ColumnName))
-                    //                {
-                    //                    if (data.CommandType == CommandType.Change)
-                    //                    {
-                    //                        _scriptTables[data.TableName].Columns.Remove(data.ColumnName);
-                    //                        _scriptTables[data.TableName].Columns.Add(data.ChangeColumnName, data);
-                    //                    }
-                    //                    if (data.CommandType == CommandType.Drop)
-                    //                    {
-                    //                        _scriptTables[data.TableName].Columns.Remove(data.ColumnName);
-                    //                    }
-                    //                }
-                    //                else
-                    //                {
-                    //                    _scriptTables[data.TableName].Columns.Add(data.ColumnName, data);
-                    //                }
-                    //            }
-                    //            //Create Table에 정보가 없는 경우 현재 접속한 DB 에서 Table 정보를 가져왔음. 
-                    //            else if (_dbTables.ContainsKey(data.TableName) && !_scriptTables.ContainsKey(data.TableName))
-                    //            {
-                    //                var option = _dbTables[data.TableName].TableOption;
-                    //                _scriptTables.Add(data.TableName, new TableInfoModel()
-                    //                {
-                    //                    Columns = _dbTables[data.TableName].Columns.ToDictionary(r => r.Key, r => r.Value),
-                    //                    TableName = data.TableName,
-                    //                    TableOption = _dbTables[data.TableName].TableOption
-                    //                });
-                    //            }
-                    //        }
-                    //        else
-                    //        {
-                    //            if (string.IsNullOrEmpty(data.ColumnName))
-                    //            {
-                    //                LogHelper.Info($"Table[ {data.TableName} ] [ {data.Command} ] 명시적 이름이 없습니다. 이미 변경이 이뤄졌을 수도 있습니다.");
-                    //                Console.ReadKey();
-                    //                continue;
-                    //            }
-
-                    //            var index = _dbIndexTables[data.TableName].Find(r => r.IndexName == data.ColumnName);
-                    //            if (index == null && data.CommandType == CommandType.Add)
-                    //            {
-                    //                LogHelper.Info($"Table[ {data.TableName} ] Name[ {data.ColumnName} ] [ {data.Command} ] (이)가 추가됩니다.");
-
-                    //                _dbIndexTables[data.TableName].Add(new IndexModel()
-                    //                {
-                    //                    IndexName = data.ColumnName,
-                    //                    TableName = data.TableName
-                    //                });
-                    //                _outputTableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
-                    //            }
-                    //            else if (index != null && data.CommandType == CommandType.Drop)
-                    //            {
-                    //                LogHelper.Info($"Table[ {data.TableName} ] Name[ {data.Command} ] (이)가 제거됩니다.");
-
-                    //                _dbIndexTables[data.TableName].Add(new IndexModel()
-                    //                {
-                    //                    IndexName = data.ColumnName,
-                    //                    TableName = data.TableName
-                    //                });
-                    //                _outputTableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
-                    //            }
-                    //            else if (data.CommandType == CommandType.Alter)
-                    //            {
-                    //                LogHelper.Info($"Table[ {data.TableName} ] [ {data.Command} ] (이)가 실행됩니다.");
-
-                    //                _outputTableBuffer.AppendLine(MySqlParseHelper.CreateSqlCommand(data));
-                    //            }
-                    //        }
-                    //    }
-                    //}
+                _outputTableScripts.Add(new(query));
+                Console.WriteLine();
             }
-            Console.WriteLine();
         }
         private void LoadTable()
         {
@@ -338,25 +331,21 @@ namespace DatabaseBatch.Infrastructure
                     throw new Exception($"{files[i].FullName} : 쿼리 문이 없습니다.");
                 }
                 MySqlScript script = new MySqlScript(query);
-
-                if (MySqlParseProcessor.CheckConnectDatabase(query, out string database))
+                var database = MySqlParsor.GetConnectDatabase(query);
+                if (!_dbContext.GetDatabaseName().Equals(database))
                 {
-                    if (!database.ToLower().Equals(_dbContext.GetDatabaseName()))
-                    {
-                        InputManager.Instance.WriteLine(ConsoleColor.Red, $"File {files[i].Name} Database [ {_dbContext.GetDatabaseName()} ] 과 [ {database} ](이)가 다릅니다.");
-                        continue;
-                    }
+                    InputManager.Instance.WriteLine(ConsoleColor.Red, $"File {files[i].Name} Database [ {_dbContext.GetDatabaseName()} ] 과 [ {database} ](이)가 다릅니다.");
+                    continue;
                 }
 
-                if (MySqlParseProcessor.ParseCreateTableCommand(query, out TableInfoModel parseTableData))
+                var parseTableData = MySqlParsor.ParseCreateTableCommand(query);
+
+                if (_databaseToTables.ContainsKey(parseTableData.TableName.ToLower()) == false)
                 {
-                    if(_tableToDatabase.ContainsKey(parseTableData.TableName.ToLower()) == false)
-                    {
-                        _outputTableScripts.Add(script);
-                        InputManager.Instance.WriteLine(ConsoleColor.DarkBlue, $"Table[ {parseTableData.TableName} ] (이)가 생성됩니다.");
-                    }
-                    _scriptTables.Add(parseTableData.TableName, parseTableData);
+                    _outputTableScripts.Add(script);
+                    InputManager.Instance.WriteLine(ConsoleColor.DarkBlue, $"Table[ {parseTableData.TableName} ] (이)가 생성됩니다.");
                 }
+                _scriptTables.Add(parseTableData.TableName, parseTableData);
             }
 
             Console.WriteLine();
@@ -403,15 +392,16 @@ namespace DatabaseBatch.Infrastructure
                 {
                     throw new Exception($"{files[i].Name} : 쿼리 문이 없습니다.");
                 }
-                if (MySqlParseProcessor.CheckConnectDatabase(query, out string database))
+
+                var database = MySqlParsor.GetConnectDatabase(query);
+
+                if (!_dbContext.GetDatabaseName().Equals(MySqlParsor.GetConnectDatabase(query)))
                 {
-                    if (!database.ToLower().Equals(_dbContext.GetDatabaseName()))
-                    {
-                        InputManager.Instance.WriteLine(ConsoleColor.Red, $"File {files[i].Name} Database [ {_dbContext.GetDatabaseName()} ] 과 [ {database} ](이)가 다릅니다.");
-                        continue;
-                    }
-                    _outputTableScripts.Add(new(query));
+                    InputManager.Instance.WriteLine(ConsoleColor.Red, $"File {files[i].Name} Database [ {_dbContext.GetDatabaseName()} ] 과 [ {database} ](이)가 다릅니다.");
+                    continue;
                 }
+
+                _outputTableScripts.Add(new(query));
             }
         }
         private void OutputScript()
