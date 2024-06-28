@@ -1,6 +1,6 @@
 ﻿using DatabaseBatch.Extensions;
 using DatabaseBatch.Models;
-using Dignus.DependencyInjection.Attribute;
+using Dignus.DependencyInjection.Attributes;
 
 namespace DatabaseBatch.Infrastructure
 {
@@ -14,6 +14,8 @@ namespace DatabaseBatch.Infrastructure
             { "long", "mediumtext"},
             { "bigint", "bigint(20)"},
         };
+        private static readonly string[] replacements = ["`", "(", ")"];
+        private static readonly string[] separator = [" ", "(", ")"];
 
         public bool DataTypeCompare(ColumnModel left, ColumnModel right)
         {
@@ -27,15 +29,15 @@ namespace DatabaseBatch.Infrastructure
                 value2 = right.ColumnDataType;
             }
 
-            return value1.ToLower() == value2.ToLower();
+            return value1.Equals(value2, StringComparison.CurrentCultureIgnoreCase);
         }
         public List<SqlParseTableData> ParseAlterCommand(string query)
         {
             var sqlParseTableData = new List<SqlParseTableData>();
-            var reader = new MySqlReader(query, new string[] {";" });
+            var reader = new MySqlReader(query, [";"]);
             while (reader.NextLine(out string line))
             {
-                if(string.IsNullOrEmpty(line) == true)
+                if (string.IsNullOrEmpty(line) == true)
                 {
                     continue;
                 }
@@ -44,14 +46,14 @@ namespace DatabaseBatch.Infrastructure
                 {
                     continue;
                 }
-                SqlParseTableData table = new SqlParseTableData();
+                SqlParseTableData table = new();
                 if (command == CommandType.Alter || command == CommandType.Drop)
                 {
                     table.TableName = splits[2].ToLower().Replace("`", "");
                     table.CommandType = command;
                 }
 
-                MySqlReader bodyReader = new(string.Join(" ", splits.Skip(3)), new string[] { "," });
+                MySqlReader bodyReader = new(string.Join(" ", splits.Skip(3)), [","]);
                 while (bodyReader.NextLine(out string bodyLine))
                 {
                     splits = bodyLine.Split(" ", StringSplitOptions.RemoveEmptyEntries);
@@ -66,20 +68,20 @@ namespace DatabaseBatch.Infrastructure
                     sqlInfoData.CommandType = command;
 
                     string columnName;
-                    if (splits[1].ToLower() == "index" ||
-                        splits[1].ToLower() == "key")
+                    if (splits[1].Equals("index", StringComparison.CurrentCultureIgnoreCase) ||
+                        splits[1].Equals("key", StringComparison.CurrentCultureIgnoreCase))
                     {
                         columnName = splits[2];
                         sqlInfoData.ClassificationType = ClassificationType.Index;
                     }
-                    else if (splits[1].ToLower() == "constraint")
+                    else if (splits[1].Equals("constraint", StringComparison.CurrentCultureIgnoreCase))
                     {
                         columnName = splits[2];
-                        if(splits[3].ToLower() == "foreign")
+                        if (splits[3].Equals("foreign", StringComparison.CurrentCultureIgnoreCase))
                         {
                             sqlInfoData.ClassificationType = ClassificationType.ForeignKey;
                         }
-                        else if(splits[3].ToLower() == "primary")
+                        else if (splits[3].Equals("primary", StringComparison.CurrentCultureIgnoreCase))
                         {
                             sqlInfoData.ClassificationType = ClassificationType.PrimaryKey;
                         }
@@ -88,17 +90,17 @@ namespace DatabaseBatch.Infrastructure
                             throw new InvalidOperationException($"what the case? T-T");
                         }
                     }
-                    else if (splits[1].ToLower() == "foreign")
+                    else if (splits[1].Equals("foreign", StringComparison.CurrentCultureIgnoreCase))
                     {
                         columnName = splits[3];
                         sqlInfoData.ClassificationType = ClassificationType.ForeignKey;
                     }
-                    else if (splits[1].ToLower() == "primary")
+                    else if (splits[1].Equals("primary", StringComparison.CurrentCultureIgnoreCase))
                     {
                         columnName = splits[3];
                         sqlInfoData.ClassificationType = ClassificationType.PrimaryKey;
                     }
-                    else if (splits[1].ToLower() == "column")
+                    else if (splits[1].Equals("column", StringComparison.CurrentCultureIgnoreCase))
                     {
                         columnName = splits[2];
                         sqlInfoData.ClassificationType = ClassificationType.Column;
@@ -112,7 +114,7 @@ namespace DatabaseBatch.Infrastructure
                     }
 
                     sqlInfoData.CommandType = command;
-                    sqlInfoData.ColumnName = columnName.Replace(new string[] { "`", "(", ")" }, "");
+                    sqlInfoData.ColumnName = columnName.Replace(replacements, "");
 
                     if (sqlInfoData.ClassificationType == ClassificationType.Column)
                     {
@@ -166,7 +168,7 @@ namespace DatabaseBatch.Infrastructure
 
                 tableInfoData.TableName = splits[2].ToLower().Replace("`", "");
 
-                var openIndex = line.IndexOf("(");
+                var openIndex = line.IndexOf('(');
                 var closeIndex = line.LastIndexOf(')');
                 if (openIndex == -1)
                 {
@@ -174,12 +176,12 @@ namespace DatabaseBatch.Infrastructure
                 }
 
                 var body = line.Substring(openIndex + 1, closeIndex - openIndex - 1).Trim();
-                MySqlReader bodyReader = new(body, new string[] { "," });
+                MySqlReader bodyReader = new(body, [","]);
                 while (bodyReader.NextLine(out string bodyLine))
                 {
                     splits = bodyLine.Split(" ", StringSplitOptions.RemoveEmptyEntries);
 
-                    if (splits[0].ToLower().StartsWith("primary"))
+                    if (splits[0].StartsWith("primary", StringComparison.CurrentCultureIgnoreCase))
                     {
 
                         do
@@ -191,27 +193,29 @@ namespace DatabaseBatch.Infrastructure
                         }
                         while (bodyReader.NextLine(out bodyLine));
                     }
-                    else if (splits[0].ToLower().StartsWith("constraint"))
+                    else if (splits[0].StartsWith("constraint", StringComparison.CurrentCultureIgnoreCase))
                     {
-                        if (splits[2].ToLower() == "foreign")
+                        if (splits[2].Equals("foreign", StringComparison.CurrentCultureIgnoreCase))
                         {
                             tableInfoData.ForeignKeyNames.Add(splits[1].Replace("`", ""));
                         }
                     }
-                    else if (splits[0].ToLower().StartsWith("foreign"))
+                    else if (splits[0].StartsWith("foreign", StringComparison.CurrentCultureIgnoreCase))
                     {
                         tableInfoData.ForeignKeyNames.Add(GetDefaultFkName(tableInfoData.TableName, defaultFkIndex++));
                     }
-                    else if(splits[0].ToLower().StartsWith("index") ||
-                        splits[0].ToLower().StartsWith("key") )
+                    else if (splits[0].StartsWith("index", StringComparison.CurrentCultureIgnoreCase) ||
+                        splits[0].StartsWith("key", StringComparison.CurrentCultureIgnoreCase))
                     {
-                        splits = bodyLine.Split(new string[] { " ", "(", ")" }, StringSplitOptions.RemoveEmptyEntries);
+                        splits = bodyLine.Split(separator, StringSplitOptions.RemoveEmptyEntries);
                         tableInfoData.IndexNames.Add(splits[1].Replace("`", ""));
                     }
                     else
                     {
-                        var column = new SqlParseColumnData();
-                        column.ColumnName = splits[0];
+                        var column = new SqlParseColumnData
+                        {
+                            ColumnName = splits[0]
+                        };
                         var endIndex = splits[1].LastIndexOf(')');
                         if (endIndex == -1)
                         {
@@ -247,11 +251,11 @@ namespace DatabaseBatch.Infrastructure
             var reader = new MySqlReader(sql);
             while (reader.NextLine(out string line))
             {
-                if (line.ToLower().StartsWith("use"))
+                if (line.StartsWith("use", StringComparison.CurrentCultureIgnoreCase))
                 {
                     database = line.Split(' ').Skip(1).Aggregate((l, r) => $"{l} {r}").Replace("`", "");
                     return database.ToLower();
-                    
+
                 }
             }
             return null;
