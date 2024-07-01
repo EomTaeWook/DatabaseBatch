@@ -134,6 +134,7 @@ namespace DatabaseBatch.Infrastructure
             Deployment(Consts.OutputScript);
             Deployment(_config.Publish.PostDeployment);
         }
+
         public void MakeScript()
         {
             //기본 테이블 세팅

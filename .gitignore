@@ -6,3 +6,6 @@ Console/bin/
 /DatabaseBatch/Config.json
 DatabaseBatch/bin/**/*
 DatabaseBatch/obj/**/*
+DatabaseBatch/Properties/PublishProfiles/FolderProfile.pubxml.user
+*.user
+DatabaseBatch/Properties/

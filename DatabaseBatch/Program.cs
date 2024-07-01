@@ -17,25 +17,29 @@ internal class Program
         InitLog();
         try
         {
-            var config = JsonSerializer.Deserialize<Config>(File.ReadAllText("./config.json"));
+            var serviceProvider = InitDependencies();
 
-            var serviceContainer = new ServiceContainer();
-            serviceContainer.RegisterDependencies(Assembly.GetExecutingAssembly());
-            serviceContainer.RegisterType(config);
-            serviceContainer.RegisterType(config.DbConfig);
-            serviceContainer.RegisterType(config.Publish);
+            var mode = SelectMode();
 
-            var manager = serviceContainer.Resolve<MySqlManager>();
-            manager.Init();
-            manager.MakeScript();
-
-            Console.WriteLine();
-            InputManager.Instance.WriteLine(ConsoleColor.White, "작업이 완료되었습니다. 배포하시겠습니까?(Y)");
-            var input = Console.ReadKey();
-            if (input.KeyChar == 'Y' || input.KeyChar == 'y')
+            if (mode == 1)
             {
-                manager.Publish();
-                InputManager.Instance.WriteLine(ConsoleColor.White, "배포가 완료되었습니다.");
+                var mySqlGenerator = serviceProvider.GetService<MySqlGenerator>();
+                mySqlGenerator.GenerateScriptFromDirectory();
+            }
+            else
+            {
+                var manager = serviceProvider.GetService<MySqlManager>();
+                manager.Init();
+                manager.MakeScript();
+                Console.WriteLine();
+
+                InputManager.Instance.WriteLine(ConsoleColor.White, "작업이 완료되었습니다. 배포하시겠습니까?(Y)");
+                var input = Console.ReadKey();
+                if (input.KeyChar == 'Y' || input.KeyChar == 'y')
+                {
+                    manager.Publish();
+                    InputManager.Instance.WriteLine(ConsoleColor.White, "배포가 완료되었습니다.");
+                }
             }
         }
         catch (Exception ex)
@@ -46,6 +50,46 @@ internal class Program
         Console.WriteLine();
         InputManager.Instance.WriteLine(ConsoleColor.White, "프로그램을 종료합니다. 아무키나 누르세요.");
         Console.ReadKey();
+    }
+    private static IServiceProvider InitDependencies()
+    {
+        Config config = JsonSerializer.Deserialize<Config>(File.ReadAllText("./config.json"));
+
+        var serviceContainer = new ServiceContainer();
+        serviceContainer.RegisterDependencies(Assembly.GetExecutingAssembly());
+        serviceContainer.RegisterType(config);
+        serviceContainer.RegisterType(config.DbConfig);
+        serviceContainer.RegisterType(config.Publish);
+
+        return serviceContainer.Build();
+    }
+    private static int SelectMode()
+    {
+        Console.WriteLine("Select an operation mode:");
+
+        Console.WriteLine("1. Generate script from current directory.");
+        Console.WriteLine("2. Connect to database and process changes.");
+
+        while (true)
+        {
+            Console.Write("Enter your choice (1 or 2): ");
+            var key = Console.ReadKey();
+            Console.ReadLine();
+            Console.WriteLine(); // To ensure subsequent outputs are on a new line.
+
+            switch (key.KeyChar)
+            {
+                case '1':
+                    return 1;
+
+                case '2':
+                    return 2;
+
+                default:
+                    Console.WriteLine("Invalid input. Please enter '1' or '2'.");
+                    break;
+            }
+        }
     }
     private static void InitLog()
     {
