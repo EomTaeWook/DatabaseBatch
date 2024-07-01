@@ -28,9 +28,9 @@ namespace DatabaseBatch.Infrastructure
             StringBuilder stringBuilder = new();
             foreach (var script in _outputScripts)
             {
-                stringBuilder.AppendLine(script.ToString());
+                stringBuilder.AppendLine(script.Query);
             }
-            File.AppendAllText(Consts.OutputScript, stringBuilder.ToString());
+            File.WriteAllText(Consts.OutputScript, stringBuilder.ToString());
             InputManager.Instance.WriteLine(ConsoleColor.Yellow, $"generate script : {Consts.OutputScript}");
         }
         private void ProcessSqlFiles(List<FileInfo> sqlFiles)
