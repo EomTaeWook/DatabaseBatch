@@ -5,7 +5,6 @@ using Dignus.DependencyInjection.Extensions;
 using Dignus.Log;
 using Dignus.Log.LogTarget;
 using Dignus.Log.Model;
-using Dignus.Log.Rule;
 using System.Reflection;
 using System.Text.Json;
 
@@ -111,18 +110,16 @@ internal class Program
             InfoColor = ConsoleColor.Green,
             FatalColor = ConsoleColor.DarkRed
         };
-        var rule = new LoggerRule("console", LogLevel.Debug, consoleLogTarget);
-        logConfiguration.AddLogRule("console rule", rule);
         FileLogTarget fileLogTarget = new()
         {
             LogFileName = "./logs/DatabaseBatch.log",
             AutoFlush = true,
             LogFormatRenderer = "${datetime} | ${level} | ${message} | ${callerFileName} : ${callerLineNumber}"
         };
-        var fileLogRule = new LoggerRule("console", LogLevel.Debug, fileLogTarget);
-        logConfiguration.AddLogRule("file rule", fileLogRule);
-        LogBuilder.Configuration(logConfiguration);
-        LogBuilder.Build();
+        logConfiguration.AddLogger("console", LoggerType.Sync)
+            .AddLogTarget(LogLevel.Debug, consoleLogTarget)
+            .AddLogTarget(LogLevel.Debug, fileLogTarget);
+        LogBuilder.Configuration(logConfiguration).Build();
         LogHelper.SetLogger(LogManager.GetLogger("console"));
     }
 }

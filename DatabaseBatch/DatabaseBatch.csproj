@@ -8,19 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MySql.Data" Version="8.0.33" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Dignus">
-      <HintPath>..\Dll\Dignus.dll</HintPath>
-    </Reference>
-    <Reference Include="Dignus.Log">
-      <HintPath>..\Dll\Dignus.Log.dll</HintPath>
-    </Reference>
-    <Reference Include="Dignus.Utils">
-      <HintPath>..\Dll\Dignus.Utils.dll</HintPath>
-    </Reference>
+    <PackageReference Include="MySql.Data" Version="26.10.0" />
+    <PackageReference Include="Dignus" Version="1.4.3" />
+    <PackageReference Include="Dignus.Log" Version="3.0.0" />
   </ItemGroup>
 
   <ItemGroup>

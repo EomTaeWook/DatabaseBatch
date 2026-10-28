@@ -2,7 +2,6 @@
 using Dignus.Collections;
 using Dignus.DependencyInjection.Attributes;
 using Dignus.Log;
-using Dignus.Utils.Extensions;
 using MySql.Data.MySqlClient;
 using System.Text;
 
@@ -39,7 +38,7 @@ namespace DatabaseBatch.Infrastructure
             foreach (var file in sqlFiles)
             {
                 LogHelper.Info($"read file : {file.Name}");
-                MySqlScript mySqlScript = new(File.ReadAllTextAsync(file.FullName).GetResult());
+                MySqlScript mySqlScript = new(File.ReadAllTextAsync(file.FullName).GetAwaiter().GetResult());
                 _outputScripts.Add(mySqlScript);
             }
         }
