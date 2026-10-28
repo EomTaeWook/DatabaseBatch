@@ -1,6 +1,7 @@
 ﻿using DatabaseBatch.Models;
 using Dignus.Collections;
 using Dignus.DependencyInjection.Attributes;
+using Dignus.Log;
 using Dignus.Utils.Extensions;
 using MySql.Data.MySqlClient;
 using System.Text;
@@ -31,13 +32,13 @@ namespace DatabaseBatch.Infrastructure
                 stringBuilder.AppendLine(script.Query);
             }
             File.WriteAllText(Consts.OutputScript, stringBuilder.ToString());
-            InputManager.Instance.WriteLine(ConsoleColor.Yellow, $"generate script : {Consts.OutputScript}");
+            LogHelper.Info($"generate script : {Consts.OutputScript}");
         }
         private void ProcessSqlFiles(List<FileInfo> sqlFiles)
         {
             foreach (var file in sqlFiles)
             {
-                InputManager.Instance.WriteLine(ConsoleColor.White, $"read file : {file.Name}");
+                LogHelper.Info($"read file : {file.Name}");
                 MySqlScript mySqlScript = new(File.ReadAllTextAsync(file.FullName).GetResult());
                 _outputScripts.Add(mySqlScript);
             }
@@ -51,7 +52,7 @@ namespace DatabaseBatch.Infrastructure
             }
             var directoryInfo = new DirectoryInfo(path);
 
-            InputManager.Instance.WriteLine(ConsoleColor.Green, $"Path : {directoryInfo.FullName}");
+            LogHelper.Info($"Path : {directoryInfo.FullName}");
 
             foreach (var directories in directoryInfo.GetDirectories())
             {

@@ -3,9 +3,9 @@ using DatabaseBatch.Models;
 using Dignus.DependencyInjection;
 using Dignus.DependencyInjection.Extensions;
 using Dignus.Log;
-using Dignus.Log.LogTargets;
-using Dignus.Log.Models;
-using Dignus.Log.Rules;
+using Dignus.Log.LogTarget;
+using Dignus.Log.Model;
+using Dignus.Log.Rule;
 using System.Reflection;
 using System.Text.Json;
 
@@ -31,14 +31,14 @@ internal class Program
                 var manager = serviceProvider.GetService<MySqlManager>();
                 manager.Init();
                 manager.MakeScript();
-                Console.WriteLine();
+                LogHelper.Info(string.Empty);
 
-                InputManager.Instance.WriteLine(ConsoleColor.White, "작업이 완료되었습니다. 배포하시겠습니까?(Y)");
+                LogHelper.Info("작업이 완료되었습니다. 배포하시겠습니까?(Y)");
                 var input = Console.ReadKey();
                 if (input.KeyChar == 'Y' || input.KeyChar == 'y')
                 {
                     manager.Publish();
-                    InputManager.Instance.WriteLine(ConsoleColor.White, "배포가 완료되었습니다.");
+                    LogHelper.Info("배포가 완료되었습니다.");
                 }
             }
         }
@@ -46,9 +46,19 @@ internal class Program
         {
             LogHelper.Error(ex);
         }
+        finally
+        {
+            try
+            {
+                LogHelper.Info(string.Empty);
+                LogHelper.Info("프로그램을 종료합니다. 아무키나 누르세요.");
+            }
+            finally
+            {
+                LogManager.Dispose();
+            }
+        }
 
-        Console.WriteLine();
-        InputManager.Instance.WriteLine(ConsoleColor.White, "프로그램을 종료합니다. 아무키나 누르세요.");
         Console.ReadKey();
     }
     private static IServiceProvider InitDependencies()
@@ -65,17 +75,17 @@ internal class Program
     }
     private static int SelectMode()
     {
-        Console.WriteLine("Select an operation mode:");
+        LogHelper.Info("Select an operation mode:");
 
-        Console.WriteLine("1. Generate script from current directory.");
-        Console.WriteLine("2. Connect to database and process changes.");
+        LogHelper.Info("1. Generate script from current directory.");
+        LogHelper.Info("2. Connect to database and process changes.");
 
         while (true)
         {
-            Console.Write("Enter your choice (1 or 2): ");
+            LogHelper.Info("Enter your choice (1 or 2): ");
             var key = Console.ReadKey();
             Console.ReadLine();
-            Console.WriteLine(); // To ensure subsequent outputs are on a new line.
+            LogHelper.Info(string.Empty);
 
             switch (key.KeyChar)
             {
@@ -86,7 +96,7 @@ internal class Program
                     return 2;
 
                 default:
-                    Console.WriteLine("Invalid input. Please enter '1' or '2'.");
+                    LogHelper.Info("Invalid input. Please enter '1' or '2'.");
                     break;
             }
         }
@@ -103,6 +113,14 @@ internal class Program
         };
         var rule = new LoggerRule("console", LogLevel.Debug, consoleLogTarget);
         logConfiguration.AddLogRule("console rule", rule);
+        FileLogTarget fileLogTarget = new()
+        {
+            LogFileName = "./logs/DatabaseBatch.log",
+            AutoFlush = true,
+            LogFormatRenderer = "${datetime} | ${level} | ${message} | ${callerFileName} : ${callerLineNumber}"
+        };
+        var fileLogRule = new LoggerRule("console", LogLevel.Debug, fileLogTarget);
+        logConfiguration.AddLogRule("file rule", fileLogRule);
         LogBuilder.Configuration(logConfiguration);
         LogBuilder.Build();
         LogHelper.SetLogger(LogManager.GetLogger("console"));

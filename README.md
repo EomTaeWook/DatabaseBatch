@@ -21,6 +21,8 @@ It identifies operations such as schema modifications or data changes in the dat
 It notifies users of the modified content and generates scripts for automatic deployment.
 
 
+작업 로그와 예외는 Dignus.Log를 통해 Console과 현재 작업 디렉터리의 `logs/DatabaseBatch.log`에 함께 기록합니다.
+
 # config.json
 
 ```json
